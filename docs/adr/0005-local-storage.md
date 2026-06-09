@@ -16,7 +16,9 @@
 - 文件系统保存大型或原始 evidence body、导入源文件和生成产物。
 - 文件对象使用内容哈希或稳定标识寻址；SQLite 保存引用、哈希、媒体类型、大小和脱敏状态。
 - SQLite 驱动固定为 better-sqlite3，查询层固定为 Kysely。
-- Schema 迁移使用自研顺序 migrations；每个 migration 在 SQLite 事务中原子执行并记录结果。
+- Schema 迁移使用自研顺序 migrations。纯 SQLite migration 在 SQLite 事务中原子执行并记录结果。
+- 涉及文件系统或工作区布局的跨介质 migration 使用可恢复的阶段协议：预检、写入临时路径或备份、提交数据库变更、原子重命名文件。
+- migration journal 在各阶段前后持久记录当前阶段和恢复信息；启动或重试时必须识别未完成 migration，并执行恢复、重试或补偿。跨介质 migration 不承诺由单一 SQLite 事务完整回滚。
 - 应用服务通过存储接口访问数据，业务层、MCP、CLI 和未来 Web UI 不直接打开数据库。
 - DuckDB 可以在后续作为可重建的分析加速层，但不拥有项目主状态，也不是阶段 1 的必需依赖。
 
@@ -33,7 +35,7 @@
 
 - 数据库记录与文件对象之间需要引用完整性、清理和恢复机制。
 - better-sqlite3 包含原生模块，发布与 Node.js 版本支持需要验证。
-- 自研 migration 需要严格测试事务回滚、并发打开和中断恢复。
+- 自研 migration 需要分别测试 SQLite 事务回滚，以及跨介质阶段协议的并发打开、中断恢复、重试和补偿。
 
 ## 替代方案
 
@@ -45,5 +47,5 @@
 ## 后续工作
 
 - 定义工作区目录、文件对象命名、校验和垃圾回收规则。
-- 实现 migration 锁、事务回滚、备份与损坏诊断。
+- 实现 migration 锁、SQLite 事务回滚、临时路径/备份、migration journal、跨介质恢复与损坏诊断。
 - 为数据库和文件引用建立一致性检查。
