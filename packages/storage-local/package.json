@@ -11,7 +11,9 @@
     }
   },
   "dependencies": {
-    "@software-analysis/core": "workspace:*"
+    "@software-analysis/core": "workspace:*",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
