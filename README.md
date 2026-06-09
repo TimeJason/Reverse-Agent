@@ -4,21 +4,21 @@ Software Analysis MCP 是一个面向 AI 编程工具的软件分析基础设施
 
 ## 项目状态
 
-项目目前处于**阶段 1：工程基础**。工作包 1 已冻结基础工程决策和架构方向，但尚未创建代码包、构建配置或可运行程序。
+项目目前处于**阶段 1：工程基础**。当前已具备 monorepo、核心领域模型、本地工作区、SQLite 初始 migration、Blob Store、默认脱敏/审计服务、最小 Pipeline Runner、CLI 纵切片和 Python worker hello 协议。
 
 当前仓库可以用于：
 
 - 阅读项目范围、架构方向和安全原则。
 - 查阅已接受的架构决策记录（ADR）。
-- 依据冻结的运行时、工具链、命名和版本契约开展后续工程工作。
+- 初始化本地分析工作区并读取项目状态。
+- 运行阶段 1 的 TypeScript 与 Python 测试。
 
 当前仓库还不能用于：
 
-- 运行 `software-analysis` CLI。
 - 启动 `software-analysis-mcp` MCP 服务。
 - 采集或导入 HTTP/HTTPS 流量、浏览器轨迹或日志。
 - 执行分析管线或生成 OpenAPI、Markdown、Postman、SDK 上下文等产物。
-- 证明脱敏、审计、权限控制或迁移机制已经实现并经过验证。
+- 完整证明权限控制或 raw evidence 授权读取流程已经实现并经过验证。
 
 上述能力属于后续工作包。当前文档描述的是已冻结的设计约束，不代表对应实现已经存在。
 
@@ -63,7 +63,30 @@ Software Analysis MCP 是一个面向 AI 编程工具的软件分析基础设施
 - [文档索引](docs/README.md)
 - [总项目计划](docs/software-analysis-mcp-platform-plan.md)
 - [冻结的工程决策](docs/development/engineering-decisions.md)
+- [开发环境](docs/development/setup.md)
+- [本地工作区格式](docs/development/workspace-format.md)
+- [安全默认值](docs/development/security-defaults.md)
 - [架构决策记录](docs/adr/README.md)
+
+## 当前快速验证
+
+```bash
+npx pnpm@11.5.2 install
+npx pnpm@11.5.2 lint
+npx pnpm@11.5.2 typecheck
+npx pnpm@11.5.2 test
+npx pnpm@11.5.2 build
+uv run --project workers/python pytest
+```
+
+当前 CLI 纵切片可以初始化本地工作区并读取状态：
+
+```bash
+npx pnpm@11.5.2 build
+node packages/cli/dist/index.js init ./demo-analysis --json
+node packages/cli/dist/index.js project status --project ./demo-analysis --json
+node packages/cli/dist/index.js doctor --json
+```
 
 ## 版本契约
 
