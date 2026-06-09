@@ -1,3 +1,4 @@
+export * from "./files/blob-store.js";
 export * from "./sqlite/migrations/index.js";
 export * from "./sqlite/repositories/fact.repository.js";
 export * from "./sqlite/repositories/finding.repository.js";
