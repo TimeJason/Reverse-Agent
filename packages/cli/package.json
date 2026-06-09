@@ -19,7 +19,8 @@
     "@software-analysis/services": "workspace:*",
     "@software-analysis/storage-local": "workspace:*",
     "@software-analysis/pipeline": "workspace:*",
-    "@software-analysis/mcp": "workspace:*"
+    "@software-analysis/mcp": "workspace:*",
+    "commander": "^15.0.0"
   },
   "scripts": {
     "build": "tsup src/index.ts src/mcp.ts --format esm --dts",
