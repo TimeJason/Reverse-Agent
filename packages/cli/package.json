@@ -1,0 +1,29 @@
+{
+  "name": "@software-analysis/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "software-analysis": "./dist/index.js",
+    "software-analysis-mcp": "./dist/mcp.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@software-analysis/core": "workspace:*",
+    "@software-analysis/services": "workspace:*",
+    "@software-analysis/storage-local": "workspace:*",
+    "@software-analysis/pipeline": "workspace:*",
+    "@software-analysis/mcp": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/mcp.ts --format esm --dts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  }
+}
