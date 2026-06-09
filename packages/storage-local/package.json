@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@software-analysis/core": "workspace:*",
+    "better-sqlite3": "^12.10.0",
+    "kysely": "^0.29.2",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
