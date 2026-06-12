@@ -1,10 +1,11 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, test } from "vitest";
 
 import { createCli } from "../src/index.js";
+import { resolveAllowedProjectPath } from "../src/local-project.js";
 
 interface InitResult {
   ok: boolean;
@@ -80,5 +81,56 @@ describe("software-analysis cli", () => {
     const result = JSON.parse(output[0] ?? "{}") as DoctorResult;
     expect(result.ok).toBe(true);
     expect(result.checks.node.ok).toBe(true);
+  });
+
+  test("imports HAR and searches redacted traffic", async () => {
+    const root = await tempProject();
+    const output: string[] = [];
+    const cli = createCli({ stdout: (text: string) => output.push(text) });
+
+    await cli.parseAsync(["node", "software-analysis", "init", root, "--json"]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "import",
+      "har",
+      resolve("../../fixtures/har/login.har"),
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "traffic",
+      "search",
+      "--project",
+      root,
+      "--host",
+      "api.example.test",
+      "--json"
+    ]);
+
+    const importResult = JSON.parse(output[1] ?? "{}") as {
+      ok: boolean;
+      result: { evidence_count: number };
+    };
+    const searchResult = JSON.parse(output[2] ?? "{}") as {
+      ok: boolean;
+      result: { items: unknown[] };
+    };
+    const serialized = JSON.stringify(searchResult);
+
+    expect(importResult.ok).toBe(true);
+    expect(importResult.result.evidence_count).toBe(2);
+    expect(searchResult.result.items).toHaveLength(2);
+    expect(serialized).not.toContain("raw-token");
+    expect(serialized).not.toContain("raw-cookie");
+  });
+
+  test("rejects MCP project file imports outside the project root", async () => {
+    const root = await tempProject();
+
+    expect(() => resolveAllowedProjectPath(root, "../secret.txt")).toThrow(/project root/i);
   });
 });

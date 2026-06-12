@@ -8,6 +8,9 @@ import { afterEach, describe, expect, test } from "vitest";
 import {
   SqliteFactRepository,
   SqliteFindingRepository,
+  SqliteCaptureSessionRepository,
+  SqliteEvidenceRepository,
+  SqliteEvidenceSourceRepository,
   SqlitePipelineRunRepository,
   SqliteProjectRepository,
   createSqliteClient,
@@ -92,6 +95,9 @@ describe("sqlite migrations and repositories", () => {
     try {
       runMigrations(client);
       const projects = new SqliteProjectRepository(client);
+      const captureSessions = new SqliteCaptureSessionRepository(client);
+      const evidenceSources = new SqliteEvidenceSourceRepository(client);
+      const evidence = new SqliteEvidenceRepository(client);
       const facts = new SqliteFactRepository(client);
       const findings = new SqliteFindingRepository(client);
       const pipelineRuns = new SqlitePipelineRunRepository(client);
@@ -141,11 +147,52 @@ describe("sqlite migrations and repositories", () => {
       };
 
       await projects.save(project);
+      await captureSessions.save({
+        id: "cap_demo",
+        project_id: project.id,
+        source: "import",
+        status: "completed",
+        started_at: "2026-06-09T00:00:00.000Z"
+      });
+      await evidenceSources.save({
+        id: "src_demo",
+        project_id: project.id,
+        kind: "har",
+        source_hash: "hash-demo",
+        created_at: "2026-06-09T00:00:00.000Z"
+      });
+      await evidence.save({
+        id: "ev_demo",
+        project_id: project.id,
+        source_id: "src_demo",
+        capture_session_id: "cap_demo",
+        kind: "http_exchange",
+        schema_version: 1,
+        observed_at: "2026-06-09T00:00:30.000Z",
+        raw_ref: "blob_raw",
+        normalized_ref: "blob_norm",
+        redaction_status: "redacted",
+        summary: {
+          type: "http_flow",
+          method: "GET",
+          url: "https://example.test/users",
+          host: "example.test",
+          path: "/users",
+          status_code: 200,
+          request_headers: {},
+          response_headers: {},
+          warnings: [],
+          redactions: []
+        }
+      });
       await facts.save(fact);
       await findings.save(finding);
       await pipelineRuns.save(run);
 
       await expect(projects.get(project.id)).resolves.toEqual(project);
+      await expect(captureSessions.listByProject(project.id)).resolves.toHaveLength(1);
+      await expect(evidenceSources.listByProject(project.id)).resolves.toHaveLength(1);
+      await expect(evidence.listByProject(project.id)).resolves.toHaveLength(1);
       await expect(facts.listByProject(project.id)).resolves.toEqual([fact]);
       await expect(findings.get(finding.id)).resolves.toEqual(finding);
       await expect(pipelineRuns.listByProject(project.id)).resolves.toEqual([run]);

@@ -11,8 +11,11 @@
     }
   },
   "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@modelcontextprotocol/server": "2.0.0-alpha.2",
     "@software-analysis/core": "workspace:*",
-    "@software-analysis/services": "workspace:*"
+    "@software-analysis/services": "workspace:*",
+    "zod": "^4.4.3"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",

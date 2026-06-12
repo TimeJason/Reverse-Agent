@@ -1,7 +1,9 @@
 import { pathToFileURL } from "node:url";
+import { readFile } from "node:fs/promises";
 
 import { Command } from "commander";
 
+import type { LogSearchQuery, TrafficSearchQuery } from "@software-analysis/core";
 import {
   createSqliteClient,
   initWorkspace,
@@ -9,6 +11,8 @@ import {
   readProjectConfig,
   runMigrations
 } from "@software-analysis/storage-local";
+
+import { openLocalProject } from "./local-project.js";
 
 export interface CliIo {
   stdout(text: string): void;
@@ -62,6 +66,166 @@ export function createCli(io: CliIo = defaultIo()): Command {
       }
     });
 
+  const importCommand = program.command("import");
+  importCommand
+    .command("har")
+    .argument("<file>")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (file: string, options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.evidenceImportService.import({
+          projectId: env.projectId,
+          provider: env.providers.har,
+          content: new Uint8Array(await readFile(file)),
+          uri: file,
+          mediaType: "application/json"
+        });
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  importCommand
+    .command("logs")
+    .argument("<file>")
+    .requiredOption("--project <path>")
+    .option("--format <format>", "jsonl, nginx, or generic", "jsonl")
+    .option("--service <service>")
+    .option("--json", "print JSON output")
+    .action(
+      async (
+        file: string,
+        options: { project: string; format: string; service?: string; json?: boolean }
+      ) => {
+        const env = await openLocalProject(options.project);
+        try {
+          const result = await env.evidenceImportService.import({
+            projectId: env.projectId,
+            provider: env.providers.logs,
+            content: new Uint8Array(await readFile(file)),
+            uri: file,
+            mediaType: "text/plain",
+            options: { format: options.format, service: options.service }
+          });
+          writeOutput(io, options.json, { ok: true, result });
+        } finally {
+          env.close();
+        }
+      }
+    );
+
+  importCommand
+    .command("mitmproxy")
+    .argument("<file>")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (file: string, options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.evidenceImportService.import({
+          projectId: env.projectId,
+          provider: env.providers.mitmproxy,
+          content: new Uint8Array(await readFile(file)),
+          uri: file,
+          mediaType: "application/octet-stream"
+        });
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const traffic = program.command("traffic");
+  traffic
+    .command("search")
+    .requiredOption("--project <path>")
+    .option("--host <host>")
+    .option("--method <method>")
+    .option("--path-contains <text>")
+    .option("--status-code <code>")
+    .option("--json", "print JSON output")
+    .action(
+      async (options: {
+        project: string;
+        host?: string;
+        method?: string;
+        pathContains?: string;
+        statusCode?: string;
+        json?: boolean;
+      }) => {
+        const env = await openLocalProject(options.project);
+        try {
+          const query = definedRecord({
+            project_id: env.projectId,
+            host: options.host,
+            method: options.method,
+            path_contains: options.pathContains,
+            status_code: options.statusCode === undefined ? undefined : Number(options.statusCode)
+          }) as TrafficSearchQuery;
+          const result = await env.evidenceQueryService.searchTraffic(query);
+          writeOutput(io, options.json, { ok: true, result });
+        } finally {
+          env.close();
+        }
+      }
+    );
+
+  traffic
+    .command("get")
+    .argument("<evidence-id>")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (evidenceId: string, options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.evidenceQueryService.getRequest(env.projectId, evidenceId);
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const logs = program.command("logs");
+  logs
+    .command("search")
+    .requiredOption("--project <path>")
+    .option("--level <level>")
+    .option("--service <service>")
+    .option("--trace-id <traceId>")
+    .option("--request-id <requestId>")
+    .option("--message-contains <text>")
+    .option("--json", "print JSON output")
+    .action(
+      async (options: {
+        project: string;
+        level?: string;
+        service?: string;
+        traceId?: string;
+        requestId?: string;
+        messageContains?: string;
+        json?: boolean;
+      }) => {
+        const env = await openLocalProject(options.project);
+        try {
+          const query = definedRecord({
+            project_id: env.projectId,
+            level: options.level,
+            service: options.service,
+            trace_id: options.traceId,
+            request_id: options.requestId,
+            message_contains: options.messageContains
+          }) as LogSearchQuery;
+          const result = await env.evidenceQueryService.searchLogs(query);
+          writeOutput(io, options.json, { ok: true, result });
+        } finally {
+          env.close();
+        }
+      }
+    );
+
   program
     .command("doctor")
     .option("--json", "print JSON output")
@@ -85,7 +249,7 @@ export async function runCli(argv = process.argv): Promise<void> {
 }
 
 function writeOutput(io: CliIo, json: boolean | undefined, value: unknown): void {
-  io.stdout(json === true ? JSON.stringify(value) : String(value));
+  io.stdout(json === true ? JSON.stringify(value) : JSON.stringify(value, null, 2));
 }
 
 function defaultIo(): CliIo {
@@ -94,6 +258,10 @@ function defaultIo(): CliIo {
       process.stdout.write(`${text}\n`);
     }
   };
+}
+
+function definedRecord<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined)) as T;
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
