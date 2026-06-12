@@ -5,6 +5,8 @@ export type {
   RedactionPolicyStore
 } from "@software-analysis/core";
 export type {
+  ApiAnalysisService,
+  ArtifactExportService,
   EvidenceImportService,
   EvidenceQueryService,
   ProjectService

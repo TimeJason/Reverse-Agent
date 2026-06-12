@@ -5,6 +5,8 @@ import type {
   EvidenceQueryService,
   ImportProvider,
   ProjectService,
+  ApiAnalysisService,
+  ArtifactExportService,
   RedactionPolicyStore
 } from "./types.js";
 
@@ -12,6 +14,8 @@ export interface SoftwareAnalysisMcpContext {
   projectId: string;
   readFile(path: string): Promise<Uint8Array>;
   projectService: ProjectService;
+  apiAnalysisService: ApiAnalysisService;
+  artifactExportService: ArtifactExportService;
   evidenceImportService: EvidenceImportService;
   evidenceQueryService: EvidenceQueryService;
   captureSessions: CaptureSessionStore;

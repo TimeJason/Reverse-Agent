@@ -226,6 +226,107 @@ export function createCli(io: CliIo = defaultIo()): Command {
       }
     );
 
+  const api = program.command("api");
+  api
+    .command("analyze")
+    .requiredOption("--project <path>")
+    .option("--capture-session <id>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; captureSession?: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.apiAnalysisService.analyzeApiSurface(
+          definedRecord({
+            projectId: env.projectId,
+            captureSessionId: options.captureSession
+          }) as { projectId: string; captureSessionId?: string }
+        );
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  api
+    .command("list")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.apiAnalysisService.listEndpoints(env.projectId);
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  api
+    .command("get")
+    .argument("<endpoint-id>")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (endpointId: string, options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.apiAnalysisService.getEndpoint(env.projectId, endpointId);
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const exportCommand = program.command("export");
+  exportCommand
+    .command("openapi")
+    .requiredOption("--project <path>")
+    .option("--format <format>", "json or yaml", "json")
+    .option("--pipeline-run <id>")
+    .option("--json", "print JSON output")
+    .action(
+      async (options: {
+        project: string;
+        format: string;
+        pipelineRun?: string;
+        json?: boolean;
+      }) => {
+        const env = await openLocalProject(options.project);
+        try {
+          const format = options.format === "yaml" ? "yaml" : "json";
+          const result = await env.artifactExportService.exportOpenApi(
+            definedRecord({
+              projectId: env.projectId,
+              pipelineRunId: options.pipelineRun,
+              format
+            }) as { projectId: string; pipelineRunId?: string; format: "json" | "yaml" }
+          );
+          writeOutput(io, options.json, { ok: true, result });
+        } finally {
+          env.close();
+        }
+      }
+    );
+
+  exportCommand
+    .command("markdown")
+    .requiredOption("--project <path>")
+    .option("--pipeline-run <id>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; pipelineRun?: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.artifactExportService.exportMarkdown(
+          definedRecord({
+            projectId: env.projectId,
+            pipelineRunId: options.pipelineRun
+          }) as { projectId: string; pipelineRunId?: string }
+        );
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
   program
     .command("doctor")
     .option("--json", "print JSON output")

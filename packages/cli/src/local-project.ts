@@ -1,8 +1,10 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
 import type { Project, Workspace } from "@software-analysis/core";
 import {
+  ApiAnalysisService,
+  ArtifactExportService,
   AuditService,
   EvidenceImportService,
   EvidenceQueryService,
@@ -15,6 +17,7 @@ import {
   FileBlobStore,
   createLocalStorage,
   createSqliteClient,
+  createWorkspaceLayout,
   readProjectConfig,
   runMigrations,
   type SqliteClient
@@ -25,6 +28,8 @@ export interface LocalProjectEnvironment {
   projectId: string;
   storage: ReturnType<typeof createLocalStorage>;
   projectService: ProjectService;
+  apiAnalysisService: ApiAnalysisService;
+  artifactExportService: ArtifactExportService;
   evidenceImportService: EvidenceImportService;
   evidenceQueryService: EvidenceQueryService;
   providers: {
@@ -67,6 +72,7 @@ export async function openLocalProject(projectRoot: string): Promise<LocalProjec
 
   const audit = new AuditService(storage.auditEvents);
   const projectService = new ProjectService({ audit, projects: storage.projects });
+  const layout = createWorkspaceLayout(projectRoot);
   const evidenceImportService = new EvidenceImportService({
     audit,
     blobStore: new FileBlobStore(projectRoot),
@@ -80,6 +86,24 @@ export async function openLocalProject(projectRoot: string): Promise<LocalProjec
     projectId: project.id,
     storage,
     projectService,
+    apiAnalysisService: new ApiAnalysisService({
+      audit,
+      evidence: storage.evidence,
+      facts: storage.facts,
+      findings: storage.findings,
+      pipelineRuns: storage.pipelineRuns
+    }),
+    artifactExportService: new ArtifactExportService({
+      artifacts: storage.artifacts,
+      facts: storage.facts,
+      pipelineRuns: storage.pipelineRuns,
+      writeArtifact: async (path: string, content: string) => {
+        await mkdir(layout.artifactsDir, { recursive: true });
+        const resolved = resolve(layout.artifactsDir, path);
+        await writeFile(resolved, content, "utf8");
+        return path;
+      }
+    }),
     evidenceImportService,
     evidenceQueryService: new EvidenceQueryService(storage.evidence),
     providers: {

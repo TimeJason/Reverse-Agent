@@ -13,7 +13,7 @@
     "lint": "pnpm -r --sort build && eslint \"packages/**/*.ts\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "pnpm -r --sort typecheck",
+    "typecheck": "pnpm -r --sort build && pnpm -r --sort typecheck",
     "test": "pnpm -r --sort build && pnpm -r --sort test && pnpm test:architecture",
     "test:architecture": "node scripts/check-package-boundaries.mjs",
     "test:contract": "node scripts/skip-suite.mjs contract",

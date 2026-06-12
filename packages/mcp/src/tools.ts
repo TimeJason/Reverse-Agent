@@ -191,6 +191,71 @@ export function createToolDefinitions(ctx: SoftwareAnalysisMcpContext): ToolDefi
             )
         };
       }
+    },
+    {
+      name: "analyze_api_surface",
+      title: "Analyze API surface",
+      description:
+        "Infer endpoint inventory, JSON schemas, and auth hints from redacted HTTP evidence.",
+      inputSchema: z.object({
+        capture_session_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.apiAnalysisService.analyzeApiSurface({
+          projectId: ctx.projectId,
+          ...(typeof input.capture_session_id === "string"
+            ? { captureSessionId: input.capture_session_id }
+            : {})
+        })
+    },
+    {
+      name: "list_endpoints",
+      title: "List endpoints",
+      description: "List inferred API endpoints for the current project.",
+      inputSchema: z.object({}),
+      handler: async () => ctx.apiAnalysisService.listEndpoints(ctx.projectId)
+    },
+    {
+      name: "get_endpoint",
+      title: "Get endpoint",
+      description: "Get one inferred API endpoint by endpoint id.",
+      inputSchema: z.object({
+        endpoint_id: z.string().min(1)
+      }),
+      handler: async (input) =>
+        ctx.apiAnalysisService.getEndpoint(ctx.projectId, stringInput(input, "endpoint_id"))
+    },
+    {
+      name: "export_openapi",
+      title: "Export OpenAPI",
+      description: "Export inferred API surface as OpenAPI 3.1 JSON or YAML artifact.",
+      inputSchema: z.object({
+        format: z.enum(["json", "yaml"]).default("json"),
+        pipeline_run_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.artifactExportService.exportOpenApi({
+          projectId: ctx.projectId,
+          format: input.format === "yaml" ? "yaml" : "json",
+          ...(typeof input.pipeline_run_id === "string"
+            ? { pipelineRunId: input.pipeline_run_id }
+            : {})
+        })
+    },
+    {
+      name: "export_markdown_docs",
+      title: "Export Markdown API docs",
+      description: "Export inferred API surface as Markdown documentation artifact.",
+      inputSchema: z.object({
+        pipeline_run_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.artifactExportService.exportMarkdown({
+          projectId: ctx.projectId,
+          ...(typeof input.pipeline_run_id === "string"
+            ? { pipelineRunId: input.pipeline_run_id }
+            : {})
+        })
     }
   ];
 }

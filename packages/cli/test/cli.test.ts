@@ -128,6 +128,60 @@ describe("software-analysis cli", () => {
     expect(serialized).not.toContain("raw-cookie");
   });
 
+  test("analyzes API surface and exports OpenAPI through CLI", async () => {
+    const root = await tempProject();
+    const output: string[] = [];
+    const cli = createCli({ stdout: (text: string) => output.push(text) });
+
+    await cli.parseAsync(["node", "software-analysis", "init", root, "--json"]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "import",
+      "har",
+      resolve("../../fixtures/har/login.har"),
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "api",
+      "analyze",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync(["node", "software-analysis", "api", "list", "--project", root, "--json"]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "export",
+      "openapi",
+      "--project",
+      root,
+      "--json"
+    ]);
+
+    const analysis = JSON.parse(output[2] ?? "{}") as {
+      result: { endpoint_count: number };
+    };
+    const endpoints = JSON.parse(output[3] ?? "{}") as {
+      result: { path_template: string }[];
+    };
+    const artifact = JSON.parse(output[4] ?? "{}") as {
+      result: { path: string };
+    };
+
+    expect(analysis.result.endpoint_count).toBe(2);
+    expect(endpoints.result.map((endpoint) => endpoint.path_template)).toEqual([
+      "/login",
+      "/orders"
+    ]);
+    expect(artifact.result.path).toMatch(/openapi-/);
+  });
+
   test("rejects MCP project file imports outside the project root", async () => {
     const root = await tempProject();
 

@@ -6,10 +6,16 @@ import type {
   CaptureSession,
   Evidence,
   EvidenceSource,
+  Fact,
+  Finding,
+  Artifact,
+  PipelineRun,
   Project,
   ProjectStore
 } from "@software-analysis/core";
 import {
+  ApiAnalysisService,
+  ArtifactExportService,
   EvidenceImportService,
   EvidenceQueryService,
   HarImportProvider,
@@ -119,10 +125,27 @@ function createContext() {
   const captureSessions = new MemoryProjectScopedStore<CaptureSession>();
   const evidence = new MemoryProjectScopedStore<Evidence>();
   const evidenceSources = new MemoryProjectScopedStore<EvidenceSource>();
+  const facts = new MemoryProjectScopedStore<Fact>();
+  const findings = new MemoryProjectScopedStore<Finding>();
+  const pipelineRuns = new MemoryProjectScopedStore<PipelineRun>();
+  const artifacts = new MemoryProjectScopedStore<Artifact>();
   return {
     projectId: project.id,
     readFile: () => Promise.resolve(new Uint8Array()),
     projectService: new ProjectService({ audit, projects }),
+    apiAnalysisService: new ApiAnalysisService({
+      audit,
+      evidence,
+      facts,
+      findings,
+      pipelineRuns
+    }),
+    artifactExportService: new ArtifactExportService({
+      artifacts,
+      facts,
+      pipelineRuns,
+      writeArtifact: (path: string) => Promise.resolve(path)
+    }),
     evidenceImportService: new EvidenceImportService({
       audit,
       blobStore: new MemoryBlobStore(),
