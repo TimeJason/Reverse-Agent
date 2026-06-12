@@ -1,1 +1,8 @@
 .worktrees/
+node_modules/
+dist/
+.pytest_cache/
+.venv/
+workers/python/.venv/
+__pycache__/
+*.pyc

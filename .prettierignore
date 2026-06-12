@@ -1,0 +1,6 @@
+dist
+node_modules
+*.md
+LICENSE
+pnpm-lock.yaml
+workers/python/.venv
