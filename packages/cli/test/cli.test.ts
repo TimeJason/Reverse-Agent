@@ -182,6 +182,107 @@ describe("software-analysis cli", () => {
     expect(artifact.result.path).toMatch(/openapi-/);
   });
 
+  test("imports browser events and analyzes business understanding through CLI", async () => {
+    const root = await tempProject();
+    const output: string[] = [];
+    const cli = createCli({ stdout: (text: string) => output.push(text) });
+
+    await cli.parseAsync(["node", "software-analysis", "init", root, "--json"]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "import",
+      "har",
+      resolve("../../fixtures/har/checkout.har"),
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "import",
+      "browser-events",
+      resolve("../../fixtures/browser/checkout-events.jsonl"),
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "api",
+      "analyze",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "analyze",
+      "workflows",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "analyze",
+      "entities",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "analyze",
+      "state-transitions",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "workflows",
+      "list",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "entities",
+      "list",
+      "--project",
+      root,
+      "--json"
+    ]);
+
+    const workflowAnalysis = JSON.parse(output[4] ?? "{}") as {
+      result: { fact_ids: string[] };
+    };
+    const entityAnalysis = JSON.parse(output[5] ?? "{}") as {
+      result: { fact_ids: string[] };
+    };
+    const workflows = JSON.parse(output[7] ?? "{}") as {
+      result: { steps: unknown[]; mermaid: string }[];
+    };
+    const entities = JSON.parse(output[8] ?? "{}") as {
+      result: { name: string }[];
+    };
+
+    expect(workflowAnalysis.result.fact_ids).toHaveLength(1);
+    expect(entityAnalysis.result.fact_ids.length).toBeGreaterThanOrEqual(2);
+    expect(workflows.result.at(0)?.steps.length).toBeGreaterThanOrEqual(4);
+    expect(workflows.result.at(0)?.mermaid).toContain("flowchart TD");
+    expect(entities.result.map((entity) => entity.name)).toEqual(expect.arrayContaining(["Order"]));
+  });
+
   test("rejects MCP project file imports outside the project root", async () => {
     const root = await tempProject();
 

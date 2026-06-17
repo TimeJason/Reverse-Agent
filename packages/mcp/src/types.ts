@@ -7,6 +7,7 @@ export type {
 export type {
   ApiAnalysisService,
   ArtifactExportService,
+  BusinessUnderstandingService,
   EvidenceImportService,
   EvidenceQueryService,
   ProjectService

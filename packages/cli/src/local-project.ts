@@ -6,6 +6,8 @@ import {
   ApiAnalysisService,
   ArtifactExportService,
   AuditService,
+  BrowserEventImportProvider,
+  BusinessUnderstandingService,
   EvidenceImportService,
   EvidenceQueryService,
   HarImportProvider,
@@ -30,10 +32,12 @@ export interface LocalProjectEnvironment {
   projectService: ProjectService;
   apiAnalysisService: ApiAnalysisService;
   artifactExportService: ArtifactExportService;
+  businessUnderstandingService: BusinessUnderstandingService;
   evidenceImportService: EvidenceImportService;
   evidenceQueryService: EvidenceQueryService;
   providers: {
     har: HarImportProvider;
+    browser: BrowserEventImportProvider;
     logs: LogImportProvider;
     mitmproxy: MitmproxyDumpImportProvider;
   };
@@ -104,10 +108,18 @@ export async function openLocalProject(projectRoot: string): Promise<LocalProjec
         return path;
       }
     }),
+    businessUnderstandingService: new BusinessUnderstandingService({
+      audit,
+      evidence: storage.evidence,
+      facts: storage.facts,
+      findings: storage.findings,
+      pipelineRuns: storage.pipelineRuns
+    }),
     evidenceImportService,
     evidenceQueryService: new EvidenceQueryService(storage.evidence),
     providers: {
       har: new HarImportProvider(),
+      browser: new BrowserEventImportProvider(),
       logs: new LogImportProvider(),
       mitmproxy: new MitmproxyDumpImportProvider()
     },

@@ -138,6 +138,27 @@ export function createCli(io: CliIo = defaultIo()): Command {
       }
     });
 
+  importCommand
+    .command("browser-events")
+    .argument("<file>")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (file: string, options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.evidenceImportService.import({
+          projectId: env.projectId,
+          provider: env.providers.browser,
+          content: new Uint8Array(await readFile(file)),
+          uri: file,
+          mediaType: "application/x-ndjson"
+        });
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
   const traffic = program.command("traffic");
   traffic
     .command("search")
@@ -270,6 +291,118 @@ export function createCli(io: CliIo = defaultIo()): Command {
       const env = await openLocalProject(options.project);
       try {
         const result = await env.apiAnalysisService.getEndpoint(env.projectId, endpointId);
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const analyze = program.command("analyze");
+  analyze
+    .command("workflows")
+    .requiredOption("--project <path>")
+    .option("--capture-session <id>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; captureSession?: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        await env.businessUnderstandingService.correlateBrowserEvents(
+          definedRecord({
+            projectId: env.projectId,
+            captureSessionId: options.captureSession
+          }) as { projectId: string; captureSessionId?: string }
+        );
+        const result = await env.businessUnderstandingService.inferWorkflows(
+          definedRecord({
+            projectId: env.projectId,
+            captureSessionId: options.captureSession
+          }) as { projectId: string; captureSessionId?: string }
+        );
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  analyze
+    .command("entities")
+    .requiredOption("--project <path>")
+    .option("--capture-session <id>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; captureSession?: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.businessUnderstandingService.inferBusinessEntities(
+          definedRecord({
+            projectId: env.projectId,
+            captureSessionId: options.captureSession
+          }) as { projectId: string; captureSessionId?: string }
+        );
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  analyze
+    .command("state-transitions")
+    .requiredOption("--project <path>")
+    .option("--capture-session <id>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; captureSession?: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.businessUnderstandingService.inferStateTransitions(
+          definedRecord({
+            projectId: env.projectId,
+            captureSessionId: options.captureSession
+          }) as { projectId: string; captureSessionId?: string }
+        );
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const workflows = program.command("workflows");
+  workflows
+    .command("list")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.businessUnderstandingService.listWorkflows(env.projectId);
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const entities = program.command("entities");
+  entities
+    .command("list")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.businessUnderstandingService.listBusinessEntities(env.projectId);
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const stateTransitions = program.command("state-transitions");
+  stateTransitions
+    .command("list")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.businessUnderstandingService.listStateTransitions(env.projectId);
         writeOutput(io, options.json, { ok: true, result });
       } finally {
         env.close();

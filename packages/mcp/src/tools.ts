@@ -109,6 +109,22 @@ export function createToolDefinitions(ctx: SoftwareAnalysisMcpContext): ToolDefi
         })
     },
     {
+      name: "import_browser_events",
+      title: "Import browser events",
+      description: "Import redacted Playwright/browser event JSONL into the current project.",
+      inputSchema: z.object({
+        file_path: z.string().min(1)
+      }),
+      handler: async (input) =>
+        ctx.evidenceImportService.import({
+          projectId: ctx.projectId,
+          provider: ctx.providers.browser,
+          content: await ctx.readFile(stringInput(input, "file_path")),
+          uri: stringInput(input, "file_path"),
+          mediaType: "application/x-ndjson"
+        })
+    },
+    {
       name: "search_traffic",
       title: "Search traffic",
       description: "Search redacted HTTP flow evidence in the current project.",
@@ -256,6 +272,113 @@ export function createToolDefinitions(ctx: SoftwareAnalysisMcpContext): ToolDefi
             ? { pipelineRunId: input.pipeline_run_id }
             : {})
         })
+    },
+    {
+      name: "correlate_browser_events",
+      title: "Correlate browser events",
+      description: "Correlate browser events with HTTP flow evidence.",
+      inputSchema: z.object({
+        capture_session_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.businessUnderstandingService.correlateBrowserEvents({
+          projectId: ctx.projectId,
+          ...(typeof input.capture_session_id === "string"
+            ? { captureSessionId: input.capture_session_id }
+            : {})
+        })
+    },
+    {
+      name: "infer_workflows",
+      title: "Infer workflows",
+      description: "Infer L2 workflow candidates from browser-flow correlations.",
+      inputSchema: z.object({
+        capture_session_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.businessUnderstandingService.inferWorkflows({
+          projectId: ctx.projectId,
+          ...(typeof input.capture_session_id === "string"
+            ? { captureSessionId: input.capture_session_id }
+            : {})
+        })
+    },
+    {
+      name: "list_workflows",
+      title: "List workflows",
+      description: "List inferred workflow candidates for the current project.",
+      inputSchema: z.object({}),
+      handler: async () => ctx.businessUnderstandingService.listWorkflows(ctx.projectId)
+    },
+    {
+      name: "get_workflow",
+      title: "Get workflow",
+      description: "Get one inferred workflow by workflow id.",
+      inputSchema: z.object({
+        workflow_id: z.string().min(1)
+      }),
+      handler: async (input) =>
+        ctx.businessUnderstandingService.getWorkflow(
+          ctx.projectId,
+          stringInput(input, "workflow_id")
+        )
+    },
+    {
+      name: "infer_business_entities",
+      title: "Infer business entities",
+      description: "Infer L3 business entity candidates from endpoints and flows.",
+      inputSchema: z.object({
+        capture_session_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.businessUnderstandingService.inferBusinessEntities({
+          projectId: ctx.projectId,
+          ...(typeof input.capture_session_id === "string"
+            ? { captureSessionId: input.capture_session_id }
+            : {})
+        })
+    },
+    {
+      name: "list_business_entities",
+      title: "List business entities",
+      description: "List inferred business entity candidates for the current project.",
+      inputSchema: z.object({}),
+      handler: async () => ctx.businessUnderstandingService.listBusinessEntities(ctx.projectId)
+    },
+    {
+      name: "get_business_entity",
+      title: "Get business entity",
+      description: "Get one inferred business entity by entity id.",
+      inputSchema: z.object({
+        entity_id: z.string().min(1)
+      }),
+      handler: async (input) =>
+        ctx.businessUnderstandingService.getBusinessEntity(
+          ctx.projectId,
+          stringInput(input, "entity_id")
+        )
+    },
+    {
+      name: "infer_state_transitions",
+      title: "Infer state transitions",
+      description: "Infer observed or candidate state transitions from flow evidence.",
+      inputSchema: z.object({
+        capture_session_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.businessUnderstandingService.inferStateTransitions({
+          projectId: ctx.projectId,
+          ...(typeof input.capture_session_id === "string"
+            ? { captureSessionId: input.capture_session_id }
+            : {})
+        })
+    },
+    {
+      name: "list_state_transitions",
+      title: "List state transitions",
+      description: "List inferred state transitions for the current project.",
+      inputSchema: z.object({}),
+      handler: async () => ctx.businessUnderstandingService.listStateTransitions(ctx.projectId)
     }
   ];
 }
