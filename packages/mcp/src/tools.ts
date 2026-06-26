@@ -274,6 +274,63 @@ export function createToolDefinitions(ctx: SoftwareAnalysisMcpContext): ToolDefi
         })
     },
     {
+      name: "export_postman_collection",
+      title: "Export Postman collection",
+      description: "Export inferred API surface as a Postman Collection artifact.",
+      inputSchema: z.object({
+        pipeline_run_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.artifactExportService.exportPostmanCollection({
+          projectId: ctx.projectId,
+          ...(typeof input.pipeline_run_id === "string"
+            ? { pipelineRunId: input.pipeline_run_id }
+            : {})
+        })
+    },
+    {
+      name: "export_sdk_context",
+      title: "Export SDK context",
+      description:
+        "Export code-generation context with endpoints, workflows, entities, hints, and evidence refs.",
+      inputSchema: z.object({
+        pipeline_run_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.artifactExportService.exportSdkContext({
+          projectId: ctx.projectId,
+          ...(typeof input.pipeline_run_id === "string"
+            ? { pipelineRunId: input.pipeline_run_id }
+            : {})
+        })
+    },
+    {
+      name: "export_workflow_report",
+      title: "Export workflow report",
+      description: "Export workflow and state transition report as JSON or Markdown artifact.",
+      inputSchema: z.object({
+        format: z.enum(["json", "markdown"]).default("json")
+      }),
+      handler: async (input) =>
+        ctx.artifactExportService.exportWorkflowReport({
+          projectId: ctx.projectId,
+          format: input.format === "markdown" ? "yaml" : "json"
+        })
+    },
+    {
+      name: "export_entity_report",
+      title: "Export entity report",
+      description: "Export entity model and state transition report as JSON or Markdown artifact.",
+      inputSchema: z.object({
+        format: z.enum(["json", "markdown"]).default("json")
+      }),
+      handler: async (input) =>
+        ctx.artifactExportService.exportEntityReport({
+          projectId: ctx.projectId,
+          format: input.format === "markdown" ? "yaml" : "json"
+        })
+    },
+    {
       name: "correlate_browser_events",
       title: "Correlate browser events",
       description: "Correlate browser events with HTTP flow evidence.",
@@ -379,6 +436,45 @@ export function createToolDefinitions(ctx: SoftwareAnalysisMcpContext): ToolDefi
       description: "List inferred state transitions for the current project.",
       inputSchema: z.object({}),
       handler: async () => ctx.businessUnderstandingService.listStateTransitions(ctx.projectId)
+    },
+    {
+      name: "find_business_rule_candidates",
+      title: "Find business rule candidates",
+      description:
+        "Find conservative L4 candidate business rules from evidence and state transitions.",
+      inputSchema: z.object({}),
+      handler: async () =>
+        ctx.businessRuleCandidateService.findCandidates({
+          projectId: ctx.projectId
+        })
+    },
+    {
+      name: "list_business_rule_candidates",
+      title: "List business rule candidates",
+      description: "List L4 candidate business rules. These are never accepted facts.",
+      inputSchema: z.object({}),
+      handler: async () => ctx.businessRuleCandidateService.listCandidates(ctx.projectId)
+    },
+    {
+      name: "llm_enrich",
+      title: "LLM enrich",
+      description:
+        "Run optional LLM enrichment through the redaction and audit chain. Disabled by default.",
+      inputSchema: z.object({
+        target: z
+          .enum([
+            "endpoint_summary",
+            "workflow_naming",
+            "entity_description",
+            "documentation_polish"
+          ])
+          .default("endpoint_summary")
+      }),
+      handler: async (input) =>
+        ctx.llmEnrichmentService.enrich({
+          projectId: ctx.projectId,
+          target: llmTarget(input.target)
+        })
     }
   ];
 }
@@ -417,4 +513,18 @@ function stringInput(input: Record<string, unknown>, key: string): string {
 
 function definedRecord(value: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined));
+}
+
+function llmTarget(
+  value: unknown
+): "endpoint_summary" | "workflow_naming" | "entity_description" | "documentation_polish" {
+  if (
+    value === "endpoint_summary" ||
+    value === "workflow_naming" ||
+    value === "entity_description" ||
+    value === "documentation_polish"
+  ) {
+    return value;
+  }
+  return "endpoint_summary";
 }

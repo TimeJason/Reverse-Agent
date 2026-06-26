@@ -124,6 +124,7 @@ describe("business understanding service", () => {
     const workflows = await business.listWorkflows("proj_demo");
     const entities = await business.listBusinessEntities("proj_demo");
     const transitions = await business.listStateTransitions("proj_demo");
+    const runs = await deps.pipelineRuns.listByProject("proj_demo");
     const serialized = JSON.stringify({ workflows, entities, transitions });
 
     expect(correlations.fact_ids.length).toBeGreaterThan(0);
@@ -135,6 +136,12 @@ describe("business understanding service", () => {
     expect(workflows.at(0)?.mermaid).toContain("flowchart TD");
     expect(entities.map((entity) => entity.name)).toEqual(expect.arrayContaining(["Order"]));
     expect(transitions.some((transition) => transition.to_state === "approved")).toBe(true);
+    expect(
+      runs
+        .filter((run) => run.name === "business-entity-inference")
+        .flatMap((run) => run.input_refs)
+        .every((ref) => ref.startsWith("ev_"))
+    ).toBe(true);
     expect(serialized).not.toContain("password");
   });
 });

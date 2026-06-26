@@ -7,10 +7,13 @@ import {
   ArtifactExportService,
   AuditService,
   BrowserEventImportProvider,
+  BusinessRuleCandidateService,
   BusinessUnderstandingService,
+  DisabledLlmProvider,
   EvidenceImportService,
   EvidenceQueryService,
   HarImportProvider,
+  LlmEnrichmentService,
   LogImportProvider,
   MitmproxyDumpImportProvider,
   ProjectService
@@ -32,7 +35,9 @@ export interface LocalProjectEnvironment {
   projectService: ProjectService;
   apiAnalysisService: ApiAnalysisService;
   artifactExportService: ArtifactExportService;
+  businessRuleCandidateService: BusinessRuleCandidateService;
   businessUnderstandingService: BusinessUnderstandingService;
+  llmEnrichmentService: LlmEnrichmentService;
   evidenceImportService: EvidenceImportService;
   evidenceQueryService: EvidenceQueryService;
   providers: {
@@ -108,12 +113,25 @@ export async function openLocalProject(projectRoot: string): Promise<LocalProjec
         return path;
       }
     }),
+    businessRuleCandidateService: new BusinessRuleCandidateService({
+      audit,
+      evidence: storage.evidence,
+      facts: storage.facts,
+      findings: storage.findings,
+      pipelineRuns: storage.pipelineRuns
+    }),
     businessUnderstandingService: new BusinessUnderstandingService({
       audit,
       evidence: storage.evidence,
       facts: storage.facts,
       findings: storage.findings,
       pipelineRuns: storage.pipelineRuns
+    }),
+    llmEnrichmentService: new LlmEnrichmentService({
+      audit,
+      facts: storage.facts,
+      findings: storage.findings,
+      provider: new DisabledLlmProvider()
     }),
     evidenceImportService,
     evidenceQueryService: new EvidenceQueryService(storage.evidence),
