@@ -21,5 +21,8 @@ export * from "./ports/storage.port.js";
 export * from "./query/evidence-query.js";
 export * from "./result.js";
 export * from "./schemas/business-rule-candidate.schema.js";
+export * from "./schemas/artifact-diff.schema.js";
+export * from "./schemas/benchmark-manifest.schema.js";
 export * from "./schemas/common.js";
+export * from "./schemas/plugin-manifest.schema.js";
 export * from "./schemas/sdk-context.schema.js";

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -30,6 +30,21 @@ interface DoctorResult {
     node: {
       ok: boolean;
     };
+  };
+}
+
+interface DoctorReportResult {
+  ok: boolean;
+  result: {
+    telemetry: "disabled";
+    checks: { name: string; ok: boolean }[];
+  };
+}
+
+interface BenchmarkResult {
+  ok: boolean;
+  result: {
+    profiles: { name: string; min_metadata_retention_ratio: number }[];
   };
 }
 
@@ -287,5 +302,129 @@ describe("software-analysis cli", () => {
     const root = await tempProject();
 
     expect(() => resolveAllowedProjectPath(root, "../secret.txt")).toThrow(/project root/i);
+  });
+
+  test("runs phase six doctor, bench, plugin validation, and artifact diff commands", async () => {
+    const root = await tempProject();
+    const manifest = join(root, "plugin.json");
+    const output: string[] = [];
+    const cli = createCli({ stdout: (text: string) => output.push(text) });
+
+    await cli.parseAsync(["node", "software-analysis", "init", root, "--json"]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "doctor",
+      "report",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync(["node", "software-analysis", "bench", "manifest", "--json"]);
+    await writeFile(
+      manifest,
+      JSON.stringify({
+        name: "example-log-provider",
+        type: "import_provider",
+        version: "0.1.0",
+        compatible_with: { core: ">=1.0 <2.0" },
+        capabilities: ["import_provider"]
+      })
+    );
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "plugins",
+      "validate",
+      manifest,
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "import",
+      "har",
+      resolve("../../fixtures/har/login.har"),
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "api",
+      "analyze",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "export",
+      "openapi",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "import",
+      "har",
+      resolve("../../fixtures/har/checkout.har"),
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "api",
+      "analyze",
+      "--project",
+      root,
+      "--json"
+    ]);
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "export",
+      "openapi",
+      "--project",
+      root,
+      "--json"
+    ]);
+    const before = JSON.parse(output[6] ?? "{}") as { result: { artifact_id: string } };
+    const after = JSON.parse(output[9] ?? "{}") as { result: { artifact_id: string } };
+    await cli.parseAsync([
+      "node",
+      "software-analysis",
+      "artifacts",
+      "diff",
+      "--project",
+      root,
+      "--before",
+      before.result.artifact_id,
+      "--after",
+      after.result.artifact_id,
+      "--json"
+    ]);
+
+    const doctor = JSON.parse(output[1] ?? "{}") as DoctorReportResult;
+    const benchmark = JSON.parse(output[2] ?? "{}") as BenchmarkResult;
+    const plugin = JSON.parse(output[3] ?? "{}") as { ok: boolean; result: { ok: boolean } };
+    const diff = JSON.parse(output[10] ?? "{}") as { result: { entry_count: number } };
+
+    expect(doctor.result.telemetry).toBe("disabled");
+    expect(benchmark.result.profiles.map((profile) => profile.name)).toEqual(["S", "M", "L"]);
+    expect(
+      benchmark.result.profiles.every((profile) => profile.min_metadata_retention_ratio === 1)
+    ).toBe(true);
+    expect(plugin.ok).toBe(true);
+    expect(plugin.result.ok).toBe(true);
+    expect(diff.result.entry_count).toBeGreaterThan(0);
   });
 });

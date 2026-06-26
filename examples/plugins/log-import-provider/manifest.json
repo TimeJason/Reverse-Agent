@@ -1,0 +1,15 @@
+{
+  "name": "example-log-provider",
+  "type": "import_provider",
+  "version": "0.1.0",
+  "compatible_with": {
+    "core": ">=1.0 <2.0"
+  },
+  "capabilities": ["import_provider"],
+  "entrypoint": "./index.js",
+  "permissions": {
+    "raw_evidence": false,
+    "network": false,
+    "filesystem": false
+  }
+}

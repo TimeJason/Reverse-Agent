@@ -1,6 +1,8 @@
 export * from "./audit/audit.service.js";
 export * from "./api/api-analysis.service.js";
 export * from "./artifacts/artifact-export.service.js";
+export * from "./artifacts/artifact-diff.service.js";
+export * from "./benchmarks/benchmark-manifest.service.js";
 export * from "./business/business-understanding.service.js";
 export * from "./business/business-rule-candidate.service.js";
 export * from "./evidence/browser-event-import-provider.js";
@@ -10,6 +12,8 @@ export * from "./evidence/har-import-provider.js";
 export * from "./evidence/log-import-provider.js";
 export * from "./evidence/mitmproxy-import-provider.js";
 export * from "./evidence/text-redaction.js";
+export * from "./diagnostics/diagnostics.service.js";
 export * from "./llm/llm-enrichment.service.js";
+export * from "./plugins/plugin-harness.service.js";
 export * from "./policy/redaction-policy.service.js";
 export * from "./project/project.service.js";
