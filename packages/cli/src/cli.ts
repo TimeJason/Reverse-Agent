@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { Command } from "commander";
 
 import type { LogSearchQuery, TrafficSearchQuery } from "@software-analysis/core";
+import { BenchmarkManifestService } from "@software-analysis/services";
 import {
   createSqliteClient,
   initWorkspace,
@@ -477,6 +478,71 @@ export function createCli(io: CliIo = defaultIo()): Command {
       }
     });
 
+  const artifacts = program.command("artifacts");
+  artifacts
+    .command("diff")
+    .requiredOption("--project <path>")
+    .requiredOption("--before <artifactId>")
+    .requiredOption("--after <artifactId>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; before: string; after: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.artifactDiffService.diff({
+          projectId: env.projectId,
+          beforeArtifactId: options.before,
+          afterArtifactId: options.after
+        });
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const plugins = program.command("plugins");
+  plugins
+    .command("validate")
+    .argument("<manifest>")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (manifest: string, options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const payload = JSON.parse(await readFile(manifest, "utf8")) as unknown;
+        const result = await env.pluginHarnessService.validate(env.projectId, payload);
+        writeOutput(io, options.json, { ok: result.ok, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const bench = program.command("bench");
+  bench
+    .command("manifest")
+    .option("--json", "print JSON output")
+    .action((options: { json?: boolean }) => {
+      const service = new BenchmarkManifestService();
+      writeOutput(io, options.json, {
+        ok: true,
+        result: service.createDefaultManifest()
+      });
+    });
+
+  const doctor = program.command("doctor");
+  doctor
+    .command("report")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.diagnosticsService.run(env.projectId);
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
   exportCommand
     .command("postman")
     .requiredOption("--project <path>")
@@ -604,20 +670,17 @@ export function createCli(io: CliIo = defaultIo()): Command {
       }
     );
 
-  program
-    .command("doctor")
-    .option("--json", "print JSON output")
-    .action((options: { json?: boolean }) => {
-      writeOutput(io, options.json, {
-        ok: true,
-        checks: {
-          node: {
-            ok: true,
-            version: process.version
-          }
+  doctor.option("--json", "print JSON output").action((options: { json?: boolean }) => {
+    writeOutput(io, options.json, {
+      ok: true,
+      checks: {
+        node: {
+          ok: true,
+          version: process.version
         }
-      });
+      }
     });
+  });
 
   return program;
 }

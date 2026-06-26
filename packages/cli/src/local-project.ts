@@ -4,11 +4,14 @@ import { isAbsolute, relative, resolve } from "node:path";
 import type { Project, Workspace } from "@software-analysis/core";
 import {
   ApiAnalysisService,
+  ArtifactDiffService,
   ArtifactExportService,
   AuditService,
+  BenchmarkManifestService,
   BrowserEventImportProvider,
   BusinessRuleCandidateService,
   BusinessUnderstandingService,
+  DiagnosticsService,
   DisabledLlmProvider,
   EvidenceImportService,
   EvidenceQueryService,
@@ -16,6 +19,7 @@ import {
   LlmEnrichmentService,
   LogImportProvider,
   MitmproxyDumpImportProvider,
+  PluginHarnessService,
   ProjectService
 } from "@software-analysis/services";
 import {
@@ -34,10 +38,14 @@ export interface LocalProjectEnvironment {
   storage: ReturnType<typeof createLocalStorage>;
   projectService: ProjectService;
   apiAnalysisService: ApiAnalysisService;
+  artifactDiffService: ArtifactDiffService;
   artifactExportService: ArtifactExportService;
+  benchmarkManifestService: BenchmarkManifestService;
   businessRuleCandidateService: BusinessRuleCandidateService;
   businessUnderstandingService: BusinessUnderstandingService;
+  diagnosticsService: DiagnosticsService;
   llmEnrichmentService: LlmEnrichmentService;
+  pluginHarnessService: PluginHarnessService;
   evidenceImportService: EvidenceImportService;
   evidenceQueryService: EvidenceQueryService;
   providers: {
@@ -113,6 +121,18 @@ export async function openLocalProject(projectRoot: string): Promise<LocalProjec
         return path;
       }
     }),
+    artifactDiffService: new ArtifactDiffService({
+      audit,
+      artifacts: storage.artifacts,
+      projectRoot,
+      writeArtifact: async (path: string, content: string) => {
+        await mkdir(layout.artifactsDir, { recursive: true });
+        const resolved = resolve(layout.artifactsDir, path);
+        await writeFile(resolved, content, "utf8");
+        return path;
+      }
+    }),
+    benchmarkManifestService: new BenchmarkManifestService(),
     businessRuleCandidateService: new BusinessRuleCandidateService({
       audit,
       evidence: storage.evidence,
@@ -127,11 +147,23 @@ export async function openLocalProject(projectRoot: string): Promise<LocalProjec
       findings: storage.findings,
       pipelineRuns: storage.pipelineRuns
     }),
+    diagnosticsService: new DiagnosticsService({
+      audit,
+      artifacts: storage.artifacts,
+      captureSessions: storage.captureSessions,
+      evidence: storage.evidence,
+      facts: storage.facts,
+      pipelineRuns: storage.pipelineRuns
+    }),
     llmEnrichmentService: new LlmEnrichmentService({
       audit,
       facts: storage.facts,
       findings: storage.findings,
       provider: new DisabledLlmProvider()
+    }),
+    pluginHarnessService: new PluginHarnessService({
+      audit,
+      coreVersion: "0.1.0"
     }),
     evidenceImportService,
     evidenceQueryService: new EvidenceQueryService(storage.evidence),

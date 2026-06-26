@@ -2,11 +2,14 @@ import { describe, expect, test } from "vitest";
 
 import {
   AnalysisErrorSchema,
+  ArtifactDiffSchema,
   AuditEventSchema,
+  BenchmarkManifestSchema,
   CaptureSessionSchema,
   EvidenceSchema,
   FindingSchema,
   PipelineRunSchema,
+  PluginManifestSchema,
   ProjectSchema,
   RedactionPolicySchema,
   WorkspaceSchema,
@@ -161,5 +164,53 @@ describe("core domain contracts", () => {
     expect(isOk(success)).toBe(true);
     expect(isErr(failure)).toBe(true);
     expect(failure.error.code).toBe("PROJECT_NOT_FOUND");
+  });
+
+  test("validates phase six public schemas", () => {
+    const manifest = PluginManifestSchema.parse({
+      name: "example-log-provider",
+      type: "import_provider",
+      version: "0.1.0",
+      compatible_with: { core: ">=1.0 <2.0" },
+      capabilities: ["import_provider"]
+    });
+    const diff = ArtifactDiffSchema.parse({
+      schema_version: 1,
+      generated_at: "2026-06-26T00:00:00.000Z",
+      before_artifact_id: "art_before",
+      after_artifact_id: "art_after",
+      ignored_fields: ["generated_at", "id"],
+      entries: [
+        {
+          kind: "endpoint_added",
+          path: "GET /orders",
+          after: { method: "GET", path_template: "/orders" },
+          summary: "Endpoint added: GET /orders"
+        }
+      ]
+    });
+    const benchmark = BenchmarkManifestSchema.parse({
+      schema_version: 1,
+      generated_at: "2026-06-26T00:00:00.000Z",
+      profiles: [
+        {
+          name: "L",
+          requests: 1_000_000,
+          max_duration_ms: 3_600_000,
+          max_memory_mb: 2_048,
+          min_metadata_retention_ratio: 1
+        }
+      ]
+    });
+
+    expect(manifest.permissions.raw_evidence).toBe(false);
+    expect(() =>
+      PluginManifestSchema.parse({
+        ...manifest,
+        capabilities: ["diagnostics"]
+      })
+    ).toThrow();
+    expect(diff.entries.at(0)?.kind).toBe("endpoint_added");
+    expect(benchmark.profiles.at(0)?.requests).toBe(1_000_000);
   });
 });
