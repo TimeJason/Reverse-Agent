@@ -7,8 +7,10 @@ export type {
 export type {
   ApiAnalysisService,
   ArtifactExportService,
+  BusinessRuleCandidateService,
   BusinessUnderstandingService,
   EvidenceImportService,
   EvidenceQueryService,
+  LlmEnrichmentService,
   ProjectService
 } from "@software-analysis/services";

@@ -13,6 +13,7 @@ import {
 } from "@software-analysis/storage-local";
 
 import { openLocalProject } from "./local-project.js";
+import { startReviewServer } from "./review-server.js";
 
 export interface CliIo {
   stdout(text: string): void;
@@ -364,6 +365,22 @@ export function createCli(io: CliIo = defaultIo()): Command {
       }
     });
 
+  analyze
+    .command("business-rules")
+    .requiredOption("--project <path>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.businessRuleCandidateService.findCandidates({
+          projectId: env.projectId
+        });
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
   const workflows = program.command("workflows");
   workflows
     .command("list")
@@ -460,6 +477,133 @@ export function createCli(io: CliIo = defaultIo()): Command {
       }
     });
 
+  exportCommand
+    .command("postman")
+    .requiredOption("--project <path>")
+    .option("--pipeline-run <id>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; pipelineRun?: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.artifactExportService.exportPostmanCollection(
+          definedRecord({
+            projectId: env.projectId,
+            pipelineRunId: options.pipelineRun
+          }) as { projectId: string; pipelineRunId?: string }
+        );
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  exportCommand
+    .command("sdk-context")
+    .requiredOption("--project <path>")
+    .option("--pipeline-run <id>")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; pipelineRun?: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.artifactExportService.exportSdkContext(
+          definedRecord({
+            projectId: env.projectId,
+            pipelineRunId: options.pipelineRun
+          }) as { projectId: string; pipelineRunId?: string }
+        );
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  exportCommand
+    .command("workflow-report")
+    .requiredOption("--project <path>")
+    .option("--format <format>", "json or markdown", "json")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; format: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.artifactExportService.exportWorkflowReport({
+          projectId: env.projectId,
+          format: options.format === "markdown" ? "yaml" : "json"
+        });
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  exportCommand
+    .command("entity-report")
+    .requiredOption("--project <path>")
+    .option("--format <format>", "json or markdown", "json")
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; format: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.artifactExportService.exportEntityReport({
+          projectId: env.projectId,
+          format: options.format === "markdown" ? "yaml" : "json"
+        });
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  const llm = program.command("llm");
+  llm
+    .command("enrich")
+    .requiredOption("--project <path>")
+    .option(
+      "--target <target>",
+      "endpoint_summary, workflow_naming, entity_description",
+      "endpoint_summary"
+    )
+    .option("--json", "print JSON output")
+    .action(async (options: { project: string; target: string; json?: boolean }) => {
+      const env = await openLocalProject(options.project);
+      try {
+        const result = await env.llmEnrichmentService.enrich({
+          projectId: env.projectId,
+          target: llmTarget(options.target)
+        });
+        writeOutput(io, options.json, { ok: true, result });
+      } finally {
+        env.close();
+      }
+    });
+
+  program
+    .command("ui")
+    .requiredOption("--project <path>")
+    .option("--host <host>", "host to bind", "127.0.0.1")
+    .option("--port <port>", "port to bind", "0")
+    .option("--once", "start and immediately stop after binding for smoke tests")
+    .option("--json", "print JSON output")
+    .action(
+      async (options: {
+        project: string;
+        host: string;
+        port: string;
+        once?: boolean;
+        json?: boolean;
+      }) => {
+        const env = await openLocalProject(options.project);
+        const server = await startReviewServer(env, {
+          host: options.host,
+          port: Number(options.port),
+          once: options.once === true
+        });
+        writeOutput(io, options.json, { ok: true, url: server.url });
+        if (options.once === true) {
+          env.close();
+        }
+      }
+    );
+
   program
     .command("doctor")
     .option("--json", "print JSON output")
@@ -496,6 +640,20 @@ function defaultIo(): CliIo {
 
 function definedRecord<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined)) as T;
+}
+
+function llmTarget(
+  value: string
+): "endpoint_summary" | "workflow_naming" | "entity_description" | "documentation_polish" {
+  if (
+    value === "endpoint_summary" ||
+    value === "workflow_naming" ||
+    value === "entity_description" ||
+    value === "documentation_polish"
+  ) {
+    return value;
+  }
+  return "endpoint_summary";
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

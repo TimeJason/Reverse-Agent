@@ -17,10 +17,13 @@ import {
   ApiAnalysisService,
   ArtifactExportService,
   BrowserEventImportProvider,
+  BusinessRuleCandidateService,
   BusinessUnderstandingService,
+  DisabledLlmProvider,
   EvidenceImportService,
   EvidenceQueryService,
   HarImportProvider,
+  LlmEnrichmentService,
   LogImportProvider,
   MitmproxyDumpImportProvider,
   ProjectService
@@ -125,6 +128,32 @@ describe("mcp tools", () => {
       ])
     );
   });
+
+  test("registers phase five tools and keeps LLM disabled by default", async () => {
+    const ctx = createContext();
+    const tools = createToolDefinitions(ctx).map((tool) => tool.name);
+    const result = await invokeTool(ctx, "llm_enrich", { target: "endpoint_summary" });
+
+    expect(tools).toEqual(
+      expect.arrayContaining([
+        "export_postman_collection",
+        "export_sdk_context",
+        "export_workflow_report",
+        "export_entity_report",
+        "find_business_rule_candidates",
+        "list_business_rule_candidates",
+        "llm_enrich"
+      ])
+    );
+    expect(result.structuredContent).toMatchObject({
+      ok: true,
+      data: {
+        status: "disabled",
+        provider: "disabled",
+        redaction_status: "redacted"
+      }
+    });
+  });
 });
 
 function createContext() {
@@ -167,12 +196,25 @@ function createContext() {
       pipelineRuns,
       writeArtifact: (path: string) => Promise.resolve(path)
     }),
+    businessRuleCandidateService: new BusinessRuleCandidateService({
+      audit,
+      evidence,
+      facts,
+      findings,
+      pipelineRuns
+    }),
     businessUnderstandingService: new BusinessUnderstandingService({
       audit,
       evidence,
       facts,
       findings,
       pipelineRuns
+    }),
+    llmEnrichmentService: new LlmEnrichmentService({
+      audit,
+      facts,
+      findings,
+      provider: new DisabledLlmProvider()
     }),
     evidenceImportService: new EvidenceImportService({
       audit,

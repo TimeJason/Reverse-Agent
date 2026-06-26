@@ -275,7 +275,7 @@ export class BusinessUnderstandingService {
       .map((fact) => fact.data as ApiEndpointData);
     const flows = await this.flows(input);
     const run = await this.startRun(input.projectId, "business-entity-inference", [
-      ...facts.filter((fact) => fact.kind === "api_endpoint").map((fact) => fact.id),
+      ...facts.filter((fact) => fact.kind === "api_endpoint").flatMap((fact) => fact.evidence_refs),
       ...flows.map((flow) => flow.evidence.id)
     ]);
     const entities = inferEntities(endpoints, flows, run.id);
