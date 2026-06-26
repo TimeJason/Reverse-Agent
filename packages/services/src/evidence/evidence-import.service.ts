@@ -4,6 +4,7 @@ import type {
   AuditSink,
   BlobRef,
   BlobStore,
+  BrowserEventSummary,
   BodyView,
   CaptureSession,
   CaptureSessionStore,
@@ -17,6 +18,7 @@ import type {
   ImportProviderInput,
   ImportWarning,
   LogEventSummary,
+  ParsedBrowserEvent,
   ParsedHttpFlow,
   ParsedLogEvent
 } from "@software-analysis/core";
@@ -128,7 +130,7 @@ export class EvidenceImportService {
             redaction_status: "redacted",
             summary
           } satisfies Evidence);
-        } else {
+        } else if (item.kind === "log_event") {
           const summary = this.createLogSummary(item, policy);
           const normalizedBlob = await this.writeJsonBlob(summary, "application/json");
           await this.deps.evidence.save({
@@ -137,6 +139,22 @@ export class EvidenceImportService {
             source_id: source.id,
             capture_session_id: session.id,
             kind: "log_event",
+            schema_version: 1,
+            observed_at: item.observed_at,
+            raw_ref: rawBlob.id,
+            normalized_ref: normalizedBlob.id,
+            redaction_status: "redacted",
+            summary
+          } satisfies Evidence);
+        } else {
+          const summary = this.createBrowserSummary(item);
+          const normalizedBlob = await this.writeJsonBlob(summary, "application/json");
+          await this.deps.evidence.save({
+            id: createId("ev"),
+            project_id: input.projectId,
+            source_id: source.id,
+            capture_session_id: session.id,
+            kind: "browser_event",
             schema_version: 1,
             observed_at: item.observed_at,
             raw_ref: rawBlob.id,
@@ -295,6 +313,40 @@ export class EvidenceImportService {
       warnings: item.warnings.map((warning) => warning.code),
       redactions
     }) satisfies LogEventSummary;
+  }
+
+  private createBrowserSummary(item: ParsedBrowserEvent): BrowserEventSummary {
+    const textRedactions: string[] = [];
+    const element =
+      item.element === undefined
+        ? undefined
+        : redactSensitiveStrings(item.element, ["element"]).value;
+    if (item.element !== undefined) {
+      textRedactions.push(...redactSensitiveStrings(item.element, ["element"]).redactions);
+    }
+    const url = item.url === undefined ? undefined : redactSensitiveText(item.url);
+    const pageUrl = item.page_url === undefined ? undefined : redactSensitiveText(item.page_url);
+    const redactions = [...textRedactions];
+    if (url?.redacted === true) {
+      redactions.push("url");
+    }
+    if (pageUrl?.redacted === true) {
+      redactions.push("page_url");
+    }
+
+    return definedRecord({
+      type: "browser_event",
+      event_type: item.event_type,
+      page_url: pageUrl?.value,
+      frame_id: item.frame_id,
+      request_id: item.request_id,
+      related_request_id: item.related_request_id,
+      method: item.method?.toUpperCase(),
+      url: url?.value,
+      element,
+      warnings: item.warnings.map((warning) => warning.code),
+      redactions
+    }) satisfies BrowserEventSummary;
   }
 
   private async createBodyView(

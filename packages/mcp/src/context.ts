@@ -7,6 +7,7 @@ import type {
   ProjectService,
   ApiAnalysisService,
   ArtifactExportService,
+  BusinessUnderstandingService,
   RedactionPolicyStore
 } from "./types.js";
 
@@ -16,6 +17,7 @@ export interface SoftwareAnalysisMcpContext {
   projectService: ProjectService;
   apiAnalysisService: ApiAnalysisService;
   artifactExportService: ArtifactExportService;
+  businessUnderstandingService: BusinessUnderstandingService;
   evidenceImportService: EvidenceImportService;
   evidenceQueryService: EvidenceQueryService;
   captureSessions: CaptureSessionStore;
@@ -23,6 +25,7 @@ export interface SoftwareAnalysisMcpContext {
   artifacts?: ArtifactStore;
   providers: {
     har: ImportProvider;
+    browser: ImportProvider;
     logs: ImportProvider;
     mitmproxy: ImportProvider;
   };

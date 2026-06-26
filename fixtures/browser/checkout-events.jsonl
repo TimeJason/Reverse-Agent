@@ -1,0 +1,6 @@
+{"timestamp":"2026-06-12T00:00:00.500Z","event_type":"navigation","page_url":"https://shop.example.test/checkout"}
+{"timestamp":"2026-06-12T00:00:00.900Z","event_type":"click","page_url":"https://shop.example.test/checkout","element":{"text":"Create order","accessible_name":"Create order"}}
+{"timestamp":"2026-06-12T00:00:01.000Z","event_type":"network","page_url":"https://shop.example.test/checkout","request_id":"req_create_order","method":"POST","url":"https://shop.example.test/orders"}
+{"timestamp":"2026-06-12T00:00:02.000Z","event_type":"network","page_url":"https://shop.example.test/checkout","request_id":"req_payment","method":"POST","url":"https://shop.example.test/payments"}
+{"timestamp":"2026-06-12T00:00:03.000Z","event_type":"submit","page_url":"https://shop.example.test/orders/123","request_id":"req_submit_order","element":{"text":"Submit order","accessible_name":"Submit order"}}
+{"timestamp":"2026-06-12T00:00:04.000Z","event_type":"click","page_url":"https://shop.example.test/admin/orders/123","request_id":"req_approve_order","element":{"text":"Approve order","accessible_name":"Approve order"}}

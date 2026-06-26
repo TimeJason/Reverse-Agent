@@ -16,6 +16,8 @@ import type {
 import {
   ApiAnalysisService,
   ArtifactExportService,
+  BrowserEventImportProvider,
+  BusinessUnderstandingService,
   EvidenceImportService,
   EvidenceQueryService,
   HarImportProvider,
@@ -25,7 +27,7 @@ import {
 } from "@software-analysis/services";
 import { describe, expect, test } from "vitest";
 
-import { invokeTool } from "../src/index.js";
+import { createToolDefinitions, invokeTool } from "../src/index.js";
 
 class MemoryBlobStore implements BlobStore {
   readonly blobs = new Map<string, Uint8Array>();
@@ -104,6 +106,25 @@ describe("mcp tools", () => {
       data: { leaks_detected: false }
     });
   });
+
+  test("registers browser and business understanding tools", () => {
+    const tools = createToolDefinitions(createContext()).map((tool) => tool.name);
+
+    expect(tools).toEqual(
+      expect.arrayContaining([
+        "import_browser_events",
+        "correlate_browser_events",
+        "infer_workflows",
+        "list_workflows",
+        "get_workflow",
+        "infer_business_entities",
+        "list_business_entities",
+        "get_business_entity",
+        "infer_state_transitions",
+        "list_state_transitions"
+      ])
+    );
+  });
 });
 
 function createContext() {
@@ -146,6 +167,13 @@ function createContext() {
       pipelineRuns,
       writeArtifact: (path: string) => Promise.resolve(path)
     }),
+    businessUnderstandingService: new BusinessUnderstandingService({
+      audit,
+      evidence,
+      facts,
+      findings,
+      pipelineRuns
+    }),
     evidenceImportService: new EvidenceImportService({
       audit,
       blobStore: new MemoryBlobStore(),
@@ -157,6 +185,7 @@ function createContext() {
     captureSessions,
     providers: {
       har: new HarImportProvider(),
+      browser: new BrowserEventImportProvider(),
       logs: new LogImportProvider(),
       mitmproxy: new MitmproxyDumpImportProvider()
     }

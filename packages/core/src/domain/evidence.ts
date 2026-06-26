@@ -52,6 +52,28 @@ export const LogEventSummarySchema = z.object({
   redactions: z.array(NonEmptyStringSchema)
 });
 
+export const BrowserElementSummarySchema = z.object({
+  text: z.string().optional(),
+  accessible_name: z.string().optional(),
+  input_name: z.string().optional(),
+  label: z.string().optional(),
+  placeholder: z.string().optional()
+});
+
+export const BrowserEventSummarySchema = z.object({
+  type: z.literal("browser_event"),
+  event_type: z.enum(["navigation", "click", "input", "submit", "network"]),
+  page_url: z.string().optional(),
+  frame_id: z.string().optional(),
+  request_id: z.string().optional(),
+  related_request_id: z.string().optional(),
+  method: z.string().optional(),
+  url: z.string().optional(),
+  element: BrowserElementSummarySchema.optional(),
+  warnings: z.array(NonEmptyStringSchema),
+  redactions: z.array(NonEmptyStringSchema)
+});
+
 export const EvidenceSourceSchema = z.object({
   id: EvidenceSourceIdSchema,
   project_id: ProjectIdSchema,
@@ -81,3 +103,4 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 export type BodyView = z.infer<typeof BodyViewSchema>;
 export type HttpFlowSummary = z.infer<typeof HttpFlowSummarySchema>;
 export type LogEventSummary = z.infer<typeof LogEventSummarySchema>;
+export type BrowserEventSummary = z.infer<typeof BrowserEventSummarySchema>;

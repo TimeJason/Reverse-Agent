@@ -22,6 +22,7 @@ export async function runMcpCli(argv = process.argv): Promise<void> {
         projectService: env.projectService,
         apiAnalysisService: env.apiAnalysisService,
         artifactExportService: env.artifactExportService,
+        businessUnderstandingService: env.businessUnderstandingService,
         evidenceImportService: env.evidenceImportService,
         evidenceQueryService: env.evidenceQueryService,
         captureSessions: env.storage.captureSessions,

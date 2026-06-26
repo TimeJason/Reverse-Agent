@@ -51,7 +51,28 @@ export interface ParsedLogEvent {
   warnings: ImportWarning[];
 }
 
-export type ParsedEvidence = ParsedHttpFlow | ParsedLogEvent;
+export interface ParsedBrowserEvent {
+  kind: "browser_event";
+  observed_at: string;
+  raw: unknown;
+  event_type: "navigation" | "click" | "input" | "submit" | "network";
+  page_url?: string;
+  frame_id?: string;
+  request_id?: string;
+  related_request_id?: string;
+  method?: string;
+  url?: string;
+  element?: {
+    text?: string;
+    accessible_name?: string;
+    input_name?: string;
+    label?: string;
+    placeholder?: string;
+  };
+  warnings: ImportWarning[];
+}
+
+export type ParsedEvidence = ParsedHttpFlow | ParsedLogEvent | ParsedBrowserEvent;
 
 export interface ImportProviderInput {
   uri?: string;
