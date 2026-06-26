@@ -76,9 +76,9 @@ class MemoryProjectScopedStore<T extends { id: string; project_id: string }> {
 }
 
 describe("phase five services", () => {
-  test("exports Postman, SDK context, workflow report, and entity report without secrets", async () => {
+  test("exports complete artifacts with metadata and without secrets", async () => {
     const deps = createDeps();
-    await seedEndpointFact(deps);
+    await seedEndpointFact(deps, { includeSensitiveExamples: true });
     await seedBusinessFacts(deps);
     const exported = new Map<string, string>();
     const exporter = new ArtifactExportService({
@@ -91,18 +91,34 @@ describe("phase five services", () => {
       }
     });
 
+    const openapi = await exporter.exportOpenApi({ projectId: "proj_demo" });
+    const markdown = await exporter.exportMarkdown({ projectId: "proj_demo" });
     const postman = await exporter.exportPostmanCollection({ projectId: "proj_demo" });
     const sdk = await exporter.exportSdkContext({ projectId: "proj_demo" });
-    const workflow = await exporter.exportWorkflowReport({ projectId: "proj_demo" });
+    const workflow = await exporter.exportWorkflowReport({
+      projectId: "proj_demo",
+      format: "yaml"
+    });
     const entity = await exporter.exportEntityReport({ projectId: "proj_demo", format: "yaml" });
     const serialized = [...exported.values()].join("\n");
 
+    expect(exported.get(openapi.path)).toContain('"openapi": "3.1.0"');
+    expect(exported.get(openapi.path)).toContain('"pipeline_run_id": "run_api"');
+    expect(exported.get(markdown.path)).toContain("## Workflows");
+    expect(exported.get(markdown.path)).toContain("## Business Entities");
+    expect(exported.get(markdown.path)).toContain("## State Transitions");
+    expect(exported.get(markdown.path)).toContain("Request schema");
+    expect(exported.get(markdown.path)).toContain("Pipeline Run: `run_api`");
     expect(exported.get(postman.path)).toContain("collection/v2.1.0");
     expect(exported.get(postman.path)).toContain("{{access_token}}");
+    expect(exported.get(postman.path)).toContain('"pipeline_run_id": "run_api"');
     expect(exported.get(sdk.path)).toContain('"schema_version": 1');
+    expect(exported.get(sdk.path)).toContain('"pipeline_run_id": "run_api"');
     expect(exported.get(workflow.path)).toContain("workflow_observed_session");
     expect(exported.get(entity.path)).toContain("# Entity Report");
     expect(serialized).not.toContain("raw-token");
+    expect(serialized).not.toContain("Bearer raw-token");
+    expect(serialized).not.toContain("secret=raw-secret");
   });
 
   test("LLM enrichment is disabled by default and fake provider creates audited annotations", async () => {
@@ -178,7 +194,10 @@ function createDeps() {
   };
 }
 
-async function seedEndpointFact(deps: ReturnType<typeof createDeps>): Promise<void> {
+async function seedEndpointFact(
+  deps: ReturnType<typeof createDeps>,
+  options: { includeSensitiveExamples?: boolean } = {}
+): Promise<void> {
   await deps.facts.save({
     id: "fact_endpoint",
     project_id: "proj_demo",
@@ -199,6 +218,17 @@ async function seedEndpointFact(deps: ReturnType<typeof createDeps>): Promise<vo
       content_types: ["application/json"],
       confidence: 0.9,
       warnings: [],
+      ...(options.includeSensitiveExamples === true
+        ? {
+            request_schema: {
+              type: "object",
+              properties: {
+                token: { type: "string", example: "Bearer raw-token" },
+                secret: { type: "string", example: "secret=raw-secret" }
+              }
+            }
+          }
+        : {}),
       response_schemas: {
         "200": {
           type: "object",
@@ -236,7 +266,7 @@ async function seedBusinessFacts(deps: ReturnType<typeof createDeps>): Promise<v
       pipeline_run_id: "run_workflow",
       steps: [],
       unresolved_items: [],
-      mermaid: "flowchart TD\n  A[Start]"
+      mermaid: "flowchart TD\n  A[Start token=raw-token]"
     }
   });
   await deps.facts.save({
@@ -258,7 +288,7 @@ async function seedBusinessFacts(deps: ReturnType<typeof createDeps>): Promise<v
       identifier_fields: ["id"],
       relationships: [],
       unresolved_items: [],
-      mermaid: "erDiagram\n  Order"
+      mermaid: "erDiagram\n  Order ||--|| Secret : secret=raw-secret"
     }
   });
   await deps.facts.save({

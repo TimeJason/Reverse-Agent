@@ -19,11 +19,13 @@ export async function runMcpCli(argv = process.argv): Promise<void> {
       await serveStdio({
         projectId: env.projectId,
         readFile: (path: string) => env.readProjectFile(path),
+        audit: env.storage.auditEvents,
         projectService: env.projectService,
         apiAnalysisService: env.apiAnalysisService,
         artifactExportService: env.artifactExportService,
         businessRuleCandidateService: env.businessRuleCandidateService,
         businessUnderstandingService: env.businessUnderstandingService,
+        captureSessionService: env.captureSessionService,
         llmEnrichmentService: env.llmEnrichmentService,
         evidenceImportService: env.evidenceImportService,
         evidenceQueryService: env.evidenceQueryService,

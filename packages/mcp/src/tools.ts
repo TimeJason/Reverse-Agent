@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { RedactionPolicySchema, createId } from "@software-analysis/core";
 import { createDefaultRedactionPolicy } from "@software-analysis/services";
 
 import type { SoftwareAnalysisMcpContext } from "./context.js";
@@ -32,6 +33,75 @@ export function createToolDefinitions(ctx: SoftwareAnalysisMcpContext): ToolDefi
       handler: async () => ctx.captureSessions.listByProject(ctx.projectId)
     },
     {
+      name: "start_capture_session",
+      title: "Start capture session",
+      description:
+        "Create a local capture session lifecycle record. Live mitmproxy/Playwright providers are not attached in this build.",
+      inputSchema: z.object({
+        name: z.string().optional(),
+        mode: z.enum(["proxy_only", "browser_assisted", "manual"]).default("proxy_only"),
+        proxy: z
+          .object({
+            host: z.string().optional(),
+            port: z.number().int().min(0).max(65535).optional()
+          })
+          .optional(),
+        browser: z
+          .object({
+            enabled: z.boolean().optional(),
+            start_url: z.string().optional(),
+            headless: z.boolean().optional()
+          })
+          .optional(),
+        filters: z
+          .object({
+            include_hosts: z.array(z.string()).optional(),
+            exclude_hosts: z.array(z.string()).optional(),
+            include_paths: z.array(z.string()).optional(),
+            exclude_paths: z.array(z.string()).optional()
+          })
+          .optional()
+      }),
+      handler: async (input) =>
+        ctx.captureSessionService.start({
+          projectId: ctx.projectId,
+          mode:
+            input.mode === "browser_assisted" || input.mode === "manual"
+              ? input.mode
+              : "proxy_only",
+          ...(typeof input.name === "string" ? { name: input.name } : {}),
+          ...(typeof input.proxy === "object" && input.proxy !== null
+            ? { proxy: input.proxy }
+            : {}),
+          ...(typeof input.browser === "object" && input.browser !== null
+            ? { browser: input.browser }
+            : {}),
+          ...(typeof input.filters === "object" && input.filters !== null
+            ? { filters: input.filters }
+            : {})
+        })
+    },
+    {
+      name: "stop_capture_session",
+      title: "Stop capture session",
+      description: "Stop a local capture session lifecycle record.",
+      inputSchema: z.object({
+        capture_session_id: z.string().min(1)
+      }),
+      handler: async (input) =>
+        ctx.captureSessionService.stop(ctx.projectId, stringInput(input, "capture_session_id"))
+    },
+    {
+      name: "get_capture_status",
+      title: "Get capture status",
+      description: "Return status for one local capture session.",
+      inputSchema: z.object({
+        capture_session_id: z.string().min(1)
+      }),
+      handler: async (input) =>
+        ctx.captureSessionService.getStatus(ctx.projectId, stringInput(input, "capture_session_id"))
+    },
+    {
       name: "get_redaction_policy",
       title: "Get redaction policy",
       description: "Return the active redaction policy or the default policy.",
@@ -47,6 +117,31 @@ export function createToolDefinitions(ctx: SoftwareAnalysisMcpContext): ToolDefi
           mode: fallback.mode,
           rules: fallback.rules
         };
+      }
+    },
+    {
+      name: "configure_redaction",
+      title: "Configure redaction",
+      description: "Create a new redaction policy version for the current project.",
+      inputSchema: z.object({
+        mode: z.enum(["default", "strict", "custom"]).default("custom"),
+        rules: z.array(z.string().min(1)).min(1)
+      }),
+      handler: async (input) => {
+        if (ctx.redactionPolicies === undefined) {
+          throw new Error("Redaction policy store is not available.");
+        }
+        const active = await ctx.redactionPolicies.getActiveForProject(ctx.projectId);
+        const policy = RedactionPolicySchema.parse({
+          id: createId("policy"),
+          project_id: ctx.projectId,
+          version: (active?.version ?? 0) + 1,
+          mode: input.mode,
+          rules: input.rules,
+          created_at: new Date().toISOString()
+        });
+        await ctx.redactionPolicies.save(policy);
+        return policy;
       }
     },
     {
@@ -213,6 +308,51 @@ export function createToolDefinitions(ctx: SoftwareAnalysisMcpContext): ToolDefi
       title: "Analyze API surface",
       description:
         "Infer endpoint inventory, JSON schemas, and auth hints from redacted HTTP evidence.",
+      inputSchema: z.object({
+        capture_session_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.apiAnalysisService.analyzeApiSurface({
+          projectId: ctx.projectId,
+          ...(typeof input.capture_session_id === "string"
+            ? { captureSessionId: input.capture_session_id }
+            : {})
+        })
+    },
+    {
+      name: "infer_endpoints",
+      title: "Infer endpoints",
+      description: "Run endpoint inventory inference through the API surface pipeline.",
+      inputSchema: z.object({
+        capture_session_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.apiAnalysisService.analyzeApiSurface({
+          projectId: ctx.projectId,
+          ...(typeof input.capture_session_id === "string"
+            ? { captureSessionId: input.capture_session_id }
+            : {})
+        })
+    },
+    {
+      name: "infer_schemas",
+      title: "Infer schemas",
+      description: "Run request and response schema inference through the API surface pipeline.",
+      inputSchema: z.object({
+        capture_session_id: z.string().optional()
+      }),
+      handler: async (input) =>
+        ctx.apiAnalysisService.analyzeApiSurface({
+          projectId: ctx.projectId,
+          ...(typeof input.capture_session_id === "string"
+            ? { captureSessionId: input.capture_session_id }
+            : {})
+        })
+    },
+    {
+      name: "infer_auth",
+      title: "Infer auth",
+      description: "Run auth hint inference through the API surface pipeline.",
       inputSchema: z.object({
         capture_session_id: z.string().optional()
       }),
@@ -484,8 +624,16 @@ export async function invokeTool(
   name: string,
   input: unknown
 ): Promise<ReturnType<typeof serializeToolResult>> {
+  const started = Date.now();
   const tool = createToolDefinitions(ctx).find((candidate) => candidate.name === name);
   if (tool === undefined) {
+    await auditMcpCall(ctx, {
+      toolName: name,
+      ok: false,
+      durationMs: Date.now() - started,
+      errorCode: "TOOL_NOT_FOUND",
+      input
+    });
     return serializeToolResult(
       failure({
         code: "TOOL_NOT_FOUND",
@@ -497,10 +645,59 @@ export async function invokeTool(
 
   try {
     const parsedInput = tool.inputSchema.parse(input);
-    return serializeToolResult(success(await tool.handler(parsedInput)));
+    const data = await tool.handler(parsedInput);
+    await auditMcpCall(ctx, {
+      toolName: name,
+      ok: true,
+      durationMs: Date.now() - started,
+      input: parsedInput
+    });
+    return serializeToolResult(success(data));
   } catch (error) {
-    return serializeToolResult(failure(normalizeError(error)));
+    const normalized = normalizeError(error);
+    await auditMcpCall(ctx, {
+      toolName: name,
+      ok: false,
+      durationMs: Date.now() - started,
+      errorCode: normalized.code,
+      input
+    });
+    return serializeToolResult(failure(normalized));
   }
+}
+
+async function auditMcpCall(
+  ctx: SoftwareAnalysisMcpContext,
+  input: {
+    toolName: string;
+    ok: boolean;
+    durationMs: number;
+    errorCode?: string;
+    input: unknown;
+  }
+): Promise<void> {
+  await ctx.audit.append({
+    id: createId("audit"),
+    project_id: ctx.projectId,
+    actor: "mcp",
+    action: "mcp.tool.called",
+    target_type: "mcp_tool",
+    target_id: input.toolName,
+    metadata: definedRecord({
+      ok: input.ok,
+      duration_ms: input.durationMs,
+      error_code: input.errorCode,
+      input_keys: inputKeys(input.input)
+    }),
+    created_at: new Date().toISOString()
+  });
+}
+
+function inputKeys(input: unknown): string[] {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return [];
+  }
+  return Object.keys(input).sort();
 }
 
 function stringInput(input: Record<string, unknown>, key: string): string {

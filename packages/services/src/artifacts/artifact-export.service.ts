@@ -14,7 +14,9 @@ import type {
   StateTransitionData,
   WorkflowData
 } from "../business/business-understanding.service.js";
-import { redactSensitiveText } from "../evidence/text-redaction.js";
+import { redactSensitiveStrings, redactSensitiveText } from "../evidence/text-redaction.js";
+
+type ExportEndpointData = ApiEndpointData & { pipeline_run_id?: string };
 
 export interface ArtifactExportServiceDependencies {
   artifacts: ArtifactStore;
@@ -44,7 +46,10 @@ export class ArtifactExportService {
     const warnings = preflight(endpoints);
     const document = openApiDocument(endpoints);
     const format = input.format ?? "json";
-    const content = format === "json" ? `${JSON.stringify(document, null, 2)}\n` : toYaml(document);
+    const content =
+      format === "json"
+        ? safeArtifactJson(document, warnings)
+        : safeArtifactText(toYaml(document), warnings);
     const path = await this.deps.writeArtifact(`openapi-${String(Date.now())}.${format}`, content);
     const artifact = await this.deps.artifacts.save({
       id: createId("art"),
@@ -72,8 +77,24 @@ export class ArtifactExportService {
 
   async exportMarkdown(input: ExportArtifactInput): Promise<ExportArtifactResult> {
     const endpoints = await this.listEndpointFacts(input.projectId, input.pipelineRunId);
-    const warnings = preflight(endpoints);
-    const content = markdownDocument(endpoints, warnings);
+    const workflows = await this.listLatestFacts<WorkflowData>(input.projectId, "workflow");
+    const entities = await this.listLatestFacts<BusinessEntityData>(
+      input.projectId,
+      "business_entity"
+    );
+    const transitions = await this.listLatestFacts<StateTransitionData>(
+      input.projectId,
+      "state_transition"
+    );
+    const warnings = [
+      ...preflight(endpoints),
+      ...reportWarnings(workflows, "workflow"),
+      ...reportWarnings(entities, "business_entity")
+    ];
+    const content = safeArtifactText(
+      markdownDocument(endpoints, workflows, entities, transitions, warnings),
+      warnings
+    );
     const path = await this.deps.writeArtifact(`api-docs-${String(Date.now())}.md`, content);
     const artifact = await this.deps.artifacts.save({
       id: createId("art"),
@@ -188,7 +209,9 @@ export class ArtifactExportService {
       warnings
     };
     const content =
-      format === "yaml" ? workflowReportMarkdown(report) : safeArtifactJson(report, warnings);
+      format === "yaml"
+        ? safeArtifactText(workflowReportMarkdown(report), warnings)
+        : safeArtifactJson(report, warnings);
     const path = await this.deps.writeArtifact(
       `workflow-report-${String(Date.now())}.${format === "yaml" ? "md" : "json"}`,
       content
@@ -240,7 +263,9 @@ export class ArtifactExportService {
       warnings
     };
     const content =
-      format === "yaml" ? entityReportMarkdown(report) : safeArtifactJson(report, warnings);
+      format === "yaml"
+        ? safeArtifactText(entityReportMarkdown(report), warnings)
+        : safeArtifactJson(report, warnings);
     const path = await this.deps.writeArtifact(
       `entity-report-${String(Date.now())}.${format === "yaml" ? "md" : "json"}`,
       content
@@ -274,13 +299,13 @@ export class ArtifactExportService {
   private async listEndpointFacts(
     projectId: string,
     pipelineRunId: string | undefined
-  ): Promise<ApiEndpointData[]> {
+  ): Promise<ExportEndpointData[]> {
     const facts = await this.deps.facts.listByProject(projectId);
     if (pipelineRunId !== undefined) {
       return facts
         .filter((fact) => fact.kind === "api_endpoint")
         .filter((fact) => fact.pipeline_run_id === pipelineRunId)
-        .map((fact) => fact.data as ApiEndpointData)
+        .map((fact) => endpointFromFact(fact))
         .sort(compareEndpoints);
     }
 
@@ -298,7 +323,7 @@ export class ArtifactExportService {
   }
 }
 
-function openApiDocument(endpoints: ApiEndpointData[]): Record<string, unknown> {
+function openApiDocument(endpoints: ExportEndpointData[]): Record<string, unknown> {
   const servers = [
     ...new Set(
       endpoints.flatMap((endpoint) =>
@@ -323,6 +348,7 @@ function openApiDocument(endpoints: ApiEndpointData[]): Record<string, unknown> 
       "x-analysis": {
         confidence: endpoint.confidence,
         evidence_refs: endpoint.evidence_refs,
+        pipeline_run_id: endpoint.pipeline_run_id,
         warnings: endpoint.warnings
       }
     };
@@ -398,7 +424,13 @@ function securitySchemeFor(scheme: string): Record<string, unknown> {
   return { type: "http", scheme: "bearer" };
 }
 
-function markdownDocument(endpoints: ApiEndpointData[], warnings: string[]): string {
+function markdownDocument(
+  endpoints: ExportEndpointData[],
+  workflows: WorkflowData[],
+  entities: BusinessEntityData[],
+  transitions: StateTransitionData[],
+  warnings: string[]
+): string {
   const lines = ["# API 文档", "", `生成时间：${new Date().toISOString()}`, ""];
 
   if (warnings.length > 0) {
@@ -415,20 +447,82 @@ function markdownDocument(endpoints: ApiEndpointData[], warnings: string[]): str
     lines.push(`- Host: \`${endpoint.host}\``);
     lines.push(`- Samples: ${String(endpoint.sample_count)}`);
     lines.push(`- Confidence: ${String(endpoint.confidence)}`);
+    lines.push(`- Pipeline Run: \`${endpoint.pipeline_run_id ?? "unknown"}\``);
     lines.push(
       `- Auth: ${endpoint.auth.required ? endpoint.auth.schemes.join(", ") : "none observed"}`
     );
     lines.push(`- Evidence: ${endpoint.evidence_refs.map((ref) => `\`${ref}\``).join(", ")}`);
+    if (endpoint.request_schema !== undefined) {
+      lines.push("");
+      lines.push("Request schema:");
+      lines.push("```json", JSON.stringify(endpoint.request_schema, null, 2), "```");
+    }
+    if (Object.keys(endpoint.response_schemas).length > 0) {
+      lines.push("");
+      lines.push("Response schemas:");
+      lines.push("```json", JSON.stringify(endpoint.response_schemas, null, 2), "```");
+    }
     lines.push("");
   }
 
-  lines.push("## Workflow/Entity", "");
-  lines.push("本阶段尚未执行业务流程、实体或状态机分析。", "");
+  lines.push("## Workflows", "");
+  if (workflows.length === 0) {
+    lines.push("- No workflow facts detected.", "");
+  }
+  for (const workflow of workflows) {
+    lines.push(`### ${workflow.name}`, "");
+    lines.push(`- Status: ${workflow.status}`);
+    lines.push(`- Confidence: ${String(workflow.confidence)}`);
+    lines.push(`- Pipeline Run: \`${workflow.pipeline_run_id}\``);
+    lines.push(`- Evidence: ${workflow.evidence_refs.map((ref) => `\`${ref}\``).join(", ")}`);
+    lines.push(`- Steps: ${String(workflow.steps.length)}`);
+    lines.push(`- Unresolved: ${String(workflow.unresolved_items.length)}`);
+    lines.push("");
+  }
+
+  lines.push("## Business Entities", "");
+  if (entities.length === 0) {
+    lines.push("- No business entity facts detected.", "");
+  }
+  for (const entity of entities) {
+    lines.push(`### ${entity.name}`, "");
+    lines.push(`- Status: ${entity.status}`);
+    lines.push(`- Confidence: ${String(entity.confidence)}`);
+    lines.push(`- Pipeline Run: \`${entity.pipeline_run_id}\``);
+    lines.push(`- Identifiers: ${entity.identifier_fields.join(", ") || "unknown"}`);
+    lines.push(`- Evidence: ${entity.evidence_refs.map((ref) => `\`${ref}\``).join(", ")}`);
+    lines.push(`- Relationships: ${String(entity.relationships.length)}`);
+    lines.push(`- Unresolved: ${String(entity.unresolved_items.length)}`);
+    lines.push("");
+  }
+
+  lines.push("## State Transitions", "");
+  if (transitions.length === 0) {
+    lines.push("- No state transition facts detected.", "");
+  }
+  for (const transition of transitions) {
+    lines.push(
+      `- ${transition.entity_name}.${transition.field}: ${transition.from_state ?? "unknown"} -> ${transition.to_state} (${transition.transition_type}, confidence ${String(transition.confidence)}, pipeline \`${transition.pipeline_run_id}\`)`
+    );
+  }
+  lines.push("");
+
+  lines.push("## Unresolved Items", "");
+  const unresolved = [
+    ...workflows.flatMap((workflow) => workflow.unresolved_items),
+    ...entities.flatMap((entity) => entity.unresolved_items),
+    ...transitions.flatMap((transition) => transition.unresolved_items)
+  ];
+  if (unresolved.length === 0) {
+    lines.push("- None.", "");
+  } else {
+    lines.push("```json", JSON.stringify(unresolved, null, 2), "```", "");
+  }
   return lines.join("\n");
 }
 
 function postmanCollection(
-  endpoints: ApiEndpointData[],
+  endpoints: ExportEndpointData[],
   warnings: string[]
 ): Record<string, unknown> {
   const folders = new Map<string, Record<string, unknown>[]>();
@@ -468,6 +562,7 @@ function postmanCollection(
       _analysis: {
         confidence: endpoint.confidence,
         evidence_refs: endpoint.evidence_refs,
+        pipeline_run_id: endpoint.pipeline_run_id,
         warnings: endpoint.warnings
       }
     };
@@ -503,7 +598,7 @@ function postmanHeaders(endpoint: ApiEndpointData): Record<string, string>[] {
 
 function sdkContext(
   projectId: string,
-  endpoints: ApiEndpointData[],
+  endpoints: ExportEndpointData[],
   workflows: WorkflowData[],
   entities: BusinessEntityData[],
   warnings: string[]
@@ -522,6 +617,7 @@ function sdkContext(
       auth: endpoint.auth,
       evidence_refs: endpoint.evidence_refs,
       confidence: endpoint.confidence,
+      pipeline_run_id: endpoint.pipeline_run_id,
       warnings: endpoint.warnings
     })),
     workflows,
@@ -576,8 +672,10 @@ function workflowReportMarkdown(report: {
   const lines = ["# Workflow Report", "", `生成时间：${report.generated_at}`, ""];
   for (const workflow of report.workflows) {
     lines.push(`## ${workflow.name}`, "");
+    lines.push(`- Workflow ID: \`${workflow.workflow_id}\``);
     lines.push(`- Status: ${workflow.status}`);
     lines.push(`- Confidence: ${String(workflow.confidence)}`);
+    lines.push(`- Pipeline Run: \`${workflow.pipeline_run_id}\``);
     lines.push(`- Evidence: ${workflow.evidence_refs.map((ref) => `\`${ref}\``).join(", ")}`);
     lines.push("");
     lines.push("```mermaid", workflow.mermaid, "```", "");
@@ -597,8 +695,10 @@ function entityReportMarkdown(report: {
   const lines = ["# Entity Report", "", `生成时间：${report.generated_at}`, ""];
   for (const entity of report.entities) {
     lines.push(`## ${entity.name}`, "");
+    lines.push(`- Entity ID: \`${entity.entity_id}\``);
     lines.push(`- Status: ${entity.status}`);
     lines.push(`- Confidence: ${String(entity.confidence)}`);
+    lines.push(`- Pipeline Run: \`${entity.pipeline_run_id}\``);
     lines.push(`- Identifiers: ${entity.identifier_fields.join(", ") || "unknown"}`);
     lines.push(`- Evidence: ${entity.evidence_refs.map((ref) => `\`${ref}\``).join(", ")}`);
     lines.push("");
@@ -635,11 +735,19 @@ function reportWarnings(items: unknown[], label: string): string[] {
 }
 
 function safeArtifactJson(value: unknown, warnings: string[]): string {
-  const serialized = JSON.stringify(value, null, 2);
-  if (redactSensitiveText(serialized).redacted) {
+  const redacted = redactSensitiveStrings(value);
+  if (redacted.redactions.length > 0) {
     warnings.push("sensitive_candidate_redacted_before_export");
   }
-  return `${serialized}\n`;
+  return `${JSON.stringify(redacted.value, null, 2)}\n`;
+}
+
+function safeArtifactText(value: string, warnings: string[]): string {
+  const redacted = redactSensitiveText(value);
+  if (redacted.redacted) {
+    warnings.push("sensitive_candidate_redacted_before_export");
+  }
+  return `${redacted.value}\n`;
 }
 
 function exampleFromSchema(schema: Record<string, unknown>): Record<string, unknown> {
@@ -700,18 +808,25 @@ function compareEndpoints(a: ApiEndpointData, b: ApiEndpointData): number {
   );
 }
 
-function latestEndpointData(facts: Fact[], runs: PipelineRun[]): ApiEndpointData[] {
+function latestEndpointData(facts: Fact[], runs: PipelineRun[]): ExportEndpointData[] {
   const runTimes = new Map(runs.map((run) => [run.id, run.finished_at ?? run.updated_at]));
-  const endpoints = new Map<string, ApiEndpointData>();
+  const endpoints = new Map<string, ExportEndpointData>();
 
   for (const fact of facts
     .filter((candidate) => candidate.kind === "api_endpoint")
     .sort((a, b) => compareFactsByAnalysisTime(a, b, runTimes))) {
-    const endpoint = fact.data as ApiEndpointData;
+    const endpoint = endpointFromFact(fact);
     endpoints.set(endpoint.endpoint_id, endpoint);
   }
 
   return [...endpoints.values()];
+}
+
+function endpointFromFact(fact: Fact): ExportEndpointData {
+  return {
+    ...(fact.data as ApiEndpointData),
+    ...(fact.pipeline_run_id === undefined ? {} : { pipeline_run_id: fact.pipeline_run_id })
+  };
 }
 
 function latestFactData<T extends Record<string, unknown>>(

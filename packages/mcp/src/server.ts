@@ -1,8 +1,7 @@
 import { McpServer, StdioServerTransport } from "@modelcontextprotocol/server";
 
 import type { SoftwareAnalysisMcpContext } from "./context.js";
-import { failure, normalizeError, serializeToolResult, success } from "./envelope.js";
-import { createToolDefinitions } from "./tools.js";
+import { createToolDefinitions, invokeTool } from "./tools.js";
 
 export function createSoftwareAnalysisMcpServer(ctx: SoftwareAnalysisMcpContext): McpServer {
   const server = new McpServer({
@@ -18,14 +17,7 @@ export function createSoftwareAnalysisMcpServer(ctx: SoftwareAnalysisMcpContext)
         description: tool.description,
         inputSchema: tool.inputSchema
       },
-      async (input) => {
-        try {
-          const parsed = tool.inputSchema.parse(input);
-          return serializeToolResult(success(await tool.handler(parsed)));
-        } catch (error) {
-          return serializeToolResult(failure(normalizeError(error)));
-        }
-      }
+      async (input) => invokeTool(ctx, tool.name, input)
     );
   }
 

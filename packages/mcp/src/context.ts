@@ -1,5 +1,6 @@
 import type {
   ArtifactStore,
+  AuditSink,
   CaptureSessionStore,
   EvidenceImportService,
   EvidenceQueryService,
@@ -9,6 +10,7 @@ import type {
   ArtifactExportService,
   BusinessRuleCandidateService,
   BusinessUnderstandingService,
+  CaptureSessionService,
   LlmEnrichmentService,
   RedactionPolicyStore
 } from "./types.js";
@@ -16,11 +18,13 @@ import type {
 export interface SoftwareAnalysisMcpContext {
   projectId: string;
   readFile(path: string): Promise<Uint8Array>;
+  audit: AuditSink;
   projectService: ProjectService;
   apiAnalysisService: ApiAnalysisService;
   artifactExportService: ArtifactExportService;
   businessRuleCandidateService: BusinessRuleCandidateService;
   businessUnderstandingService: BusinessUnderstandingService;
+  captureSessionService: CaptureSessionService;
   llmEnrichmentService: LlmEnrichmentService;
   evidenceImportService: EvidenceImportService;
   evidenceQueryService: EvidenceQueryService;
