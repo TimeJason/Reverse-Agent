@@ -11,6 +11,7 @@ import {
   BrowserEventImportProvider,
   BusinessRuleCandidateService,
   BusinessUnderstandingService,
+  CaptureSessionService,
   DiagnosticsService,
   DisabledLlmProvider,
   EvidenceImportService,
@@ -43,6 +44,7 @@ export interface LocalProjectEnvironment {
   benchmarkManifestService: BenchmarkManifestService;
   businessRuleCandidateService: BusinessRuleCandidateService;
   businessUnderstandingService: BusinessUnderstandingService;
+  captureSessionService: CaptureSessionService;
   diagnosticsService: DiagnosticsService;
   llmEnrichmentService: LlmEnrichmentService;
   pluginHarnessService: PluginHarnessService;
@@ -146,6 +148,10 @@ export async function openLocalProject(projectRoot: string): Promise<LocalProjec
       facts: storage.facts,
       findings: storage.findings,
       pipelineRuns: storage.pipelineRuns
+    }),
+    captureSessionService: new CaptureSessionService({
+      audit,
+      captureSessions: storage.captureSessions
     }),
     diagnosticsService: new DiagnosticsService({
       audit,

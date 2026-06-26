@@ -1,4 +1,5 @@
 export type {
+  AuditSink,
   ArtifactStore,
   CaptureSessionStore,
   ImportProvider,
@@ -9,6 +10,7 @@ export type {
   ArtifactExportService,
   BusinessRuleCandidateService,
   BusinessUnderstandingService,
+  CaptureSessionService,
   EvidenceImportService,
   EvidenceQueryService,
   LlmEnrichmentService,

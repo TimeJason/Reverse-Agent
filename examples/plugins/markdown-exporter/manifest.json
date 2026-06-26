@@ -1,0 +1,15 @@
+{
+  "name": "example-markdown-exporter",
+  "type": "exporter",
+  "version": "0.1.0",
+  "compatible_with": {
+    "core": ">=1.0 <2.0"
+  },
+  "capabilities": ["exporter"],
+  "entrypoint": "./index.js",
+  "permissions": {
+    "raw_evidence": false,
+    "network": false,
+    "filesystem": false
+  }
+}

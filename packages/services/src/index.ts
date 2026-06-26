@@ -5,6 +5,7 @@ export * from "./artifacts/artifact-diff.service.js";
 export * from "./benchmarks/benchmark-manifest.service.js";
 export * from "./business/business-understanding.service.js";
 export * from "./business/business-rule-candidate.service.js";
+export * from "./capture/capture-session.service.js";
 export * from "./evidence/browser-event-import-provider.js";
 export * from "./evidence/evidence-import.service.js";
 export * from "./evidence/evidence-query.service.js";
