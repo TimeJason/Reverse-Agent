@@ -14,15 +14,21 @@ export function redactSensitiveText(value: string): { value: string; redacted: b
   let output = value;
 
   for (const pattern of sensitiveTextPatterns) {
-    output = output.replace(pattern, (_match: string, key?: string) => {
+    output = output.replace(pattern, (...args: unknown[]) => {
       redacted = true;
-      if (key?.startsWith('"') === true) {
-        return `"${key.slice(1, -1)}":"[REDACTED:credential]"`;
+      const match = String(args[0]);
+      const captures = args.slice(1, -2);
+      const key = captures.find(
+        (capture): capture is string => typeof capture === "string" && capture.length > 0
+      );
+
+      if (/^"[^"]+"\s*:/.test(match) && key !== undefined) {
+        return `"${key}":"[REDACTED:credential]"`;
       }
-      if (key === undefined || key.length === 0) {
-        return "[REDACTED:sensitive]";
+      if (/^(Bearer|Basic)\s+/i.test(match)) {
+        return "[REDACTED:credential]";
       }
-      return `${key}=[REDACTED:credential]`;
+      return key === undefined ? "[REDACTED:sensitive]" : `${key}=[REDACTED:credential]`;
     });
   }
 

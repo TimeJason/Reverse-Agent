@@ -1,4 +1,6 @@
 export * from "./audit/audit.service.js";
+export * from "./api/api-analysis.service.js";
+export * from "./artifacts/artifact-export.service.js";
 export * from "./evidence/evidence-import.service.js";
 export * from "./evidence/evidence-query.service.js";
 export * from "./evidence/har-import-provider.js";
